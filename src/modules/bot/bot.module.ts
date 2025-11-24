@@ -5,6 +5,7 @@ import { BarbershopModule } from '../barbershop/barbershop.module';
 import { BarberModule } from '../barber/barber.module';
 import { ClientModule } from '../client/client.module';
 import { BookingModule } from '../booking/booking.module';
+import { BarberRequestModule } from '../barber-request/barber-request.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { BookingModule } from '../booking/booking.module';
     BarberModule,
     ClientModule,
     BookingModule,
+    BarberRequestModule,
   ],
   providers: [BotService],
   exports: [BotService],

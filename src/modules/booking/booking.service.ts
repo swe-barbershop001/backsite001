@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Booking } from './entities/booking.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
@@ -64,17 +64,21 @@ export class BookingService {
     return await this.update(id, { status: BookingStatus.REJECTED });
   }
 
+  async cancel(id: number): Promise<Booking | null> {
+    return await this.update(id, { status: BookingStatus.CANCELLED });
+  }
+
   async remove(id: number): Promise<void> {
     await this.bookingRepository.delete(id);
   }
 
   async getAvailableTimeSlots(barberId: number, date: string): Promise<string[]> {
-    // Get all bookings for this barber on this date
+    // Get all bookings for this barber on this date (approved and pending block slots)
     const bookings = await this.bookingRepository.find({
       where: {
         barberId,
         date,
-        status: BookingStatus.APPROVED,
+        status: In([BookingStatus.APPROVED, BookingStatus.PENDING]),
       },
     });
 

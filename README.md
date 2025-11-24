@@ -4,10 +4,36 @@ A production-ready Telegram bot built with NestJS, TypeORM, and Grammy for manag
 
 ## Features
 
-- **Client Flow**: Clients can browse barbershops, select barbers, choose dates and time slots, and create bookings
-- **Barber Flow**: Barbers receive booking notifications and can approve or reject requests via inline buttons
-- **Admin Flow**: Admins can add barbers and list all barbers
-- **Real-time Notifications**: Clients receive instant updates when their bookings are approved or rejected
+### 👤 Client (Mijoz) funksiyalari
+
+- ✅ Telegram orqali ro'yxatdan o'tish
+- ✅ Barbershop va barber tanlash
+- ✅ Sana va vaqt tanlash (keyingi 7 kun)
+- ✅ Booking yaratish
+- ✅ Booking holatini kuzatish
+- ✅ Reply keyboard orqali oson booking qilish
+
+### ✂️ Barber (Barber) funksiyalari
+
+- ✅ Barber sifatida ro'yxatdan o'tish (admin tasdiqlashi bilan)
+- ✅ Booking so'rovlarini qabul qilish
+- ✅ Bookinglarni tasdiqlash yoki rad etish
+- ✅ Real-time booking bildirishnomalari
+
+### 🔧 Admin funksiyalari
+
+- ✅ Admin panel orqali boshqaruv
+- ✅ Barber so'rovlarini ko'rish va tasdiqlash
+- ✅ Umumiy statistika ko'rish
+- ✅ Barberlar ro'yxatini ko'rish
+
+### 🔔 Umumiy funksiyalar
+
+- ✅ Real-time bildirishnomalar
+- ✅ Inline keyboard orqali qulay interfeys
+- ✅ Reply keyboard orqali tez kirish
+- ✅ Booking holatini kuzatish
+- ✅ REST API orqali boshqaruv
 
 ## Tech Stack
 
@@ -42,48 +68,53 @@ src/
 ## Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd barbershop-bot
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**
-   
+
    Create a `.env` file in the root directory:
+
    ```env
    # Telegram Bot Configuration
    BOT_TOKEN=your_telegram_bot_token_here
-   
+
    # Admin Telegram User ID
    ADMIN_TG_ID=your_admin_telegram_user_id_here
-   
+
    # Database Configuration
    DB_HOST=localhost
    DB_PORT=5432
    DB_USERNAME=postgres
    DB_PASSWORD=postgres
    DB_DATABASE=barbershop_bot
-   
+
    # Application Port
    PORT=3000
    ```
 
 4. **Set up PostgreSQL database**
+
    ```bash
    # Create database
    createdb barbershop_bot
    ```
 
 5. **Run the application**
+
    ```bash
    # Development mode
    npm run start:dev
-   
+
    # Production mode
    npm run build
    npm run start:prod
@@ -104,69 +135,173 @@ src/
 
 ## Usage
 
-### Client Flow
+### Bot Commands
 
-1. Start the bot: `/start`
-2. Select a barbershop from the list
-3. Select a barber
-4. Choose a date (next 7 days)
-5. Select an available time slot
-6. Wait for barber confirmation
+#### 🔹 Umumiy komandalar (Barcha foydalanuvchilar uchun)
 
-### Admin Commands
+**`/start`** - Botni boshlash va ro'yxatdan o'tish
 
-- `/add_barber <name> <telegram_id> <barbershop_id>` - Add a new barber
-  ```
-  Example: /add_barber John Doe 123456789 1
-  ```
+- Yangi foydalanuvchilar: Client yoki Barber sifatida ro'yxatdan o'tish
+- Allaqachon ro'yxatdan o'tganlar: Mavjud holat haqida xabar
 
-- `/list_barbers` - List all barbers
+**`/me`** - Shaxsiy ma'lumotlarni ko'rish
 
-### Barber Flow
+- Telegram ID
+- Rol (Client/Barber)
+- Barbershop (Barber uchun)
+- Holat va ro'yxatdan o'tgan sana
 
-1. Barbers receive a notification when a client creates a booking
-2. Click "✔ Approve" or "❌ Reject" button
-3. Client receives instant notification about the decision
+**`📅 Booking qilish`** - Booking qilish tugmasi (faqat Client uchun)
+
+- Reply keyboard orqali mavjud
+- Barbershop tanlash
+- Barber tanlash
+- Sana va vaqt tanlash
+
+#### 🔹 Admin komandalar (Faqat admin uchun)
+
+**`/admin`** - Admin panel
+
+- Umumiy statistika (Barberlar, Mijozlar, Kutilayotgan so'rovlar)
+- Kutilayotgan barber so'rovlari ro'yxati
+- Mavjud buyruqlar haqida ma'lumot
+
+**`/list_barbers`** - Barcha barberlar ro'yxati
+
+- Barber ismi
+- Telegram ID
+- Barbershop nomi
+
+### 📱 Foydalanish jarayoni
+
+#### Client Flow (Mijoz)
+
+1. **Ro'yxatdan o'tish**: `/start` → "👤 Client" tugmasini bosing
+2. **Booking qilish**:
+   - Reply keyboard dan "📅 Booking qilish" tugmasini bosing
+   - Barbershop tanlang
+   - Barber tanlang
+   - Sana tanlang (keyingi 7 kun)
+   - Vaqt tanlang (mavjud vaqtlar)
+3. **Tasdiqlashni kutish**: Barber tasdiqlashini kutib turing
+4. **Xabar olish**: Booking tasdiqlangan yoki rad etilgan haqida xabar olasiz
+
+#### Barber Flow (Barber)
+
+1. **Ro'yxatdan o'tish**: `/start` → "✂️ Barber" tugmasini bosing
+2. **Barbershop tanlash**: Qaysi barbershopda ishlayotganingizni tanlang
+3. **Tasdiqlashni kutish**: Admin tasdiqlashini kutib turing
+4. **Booking qabul qilish**:
+   - Yangi booking so'rovi kelganda xabar olasiz
+   - "✔ Approve" yoki "❌ Reject" tugmasini bosing
+   - Mijozga avtomatik xabar yuboriladi
+
+#### Admin Flow
+
+1. **Admin panel**: `/admin` - Umumiy statistika va kutilayotgan so'rovlar
+2. **Barber so'rovlarini ko'rish**: Admin panelda kutilayotgan so'rovlar ro'yxati
+3. **Barber so'rovini tasdiqlash**:
+   - "✔ Approve" tugmasini bosing → Barber yaratiladi
+   - "✖ Reject" tugmasini bosing → So'rov rad etiladi
+4. **Barberlar ro'yxati**: `/list_barbers` - Barcha barberlar ro'yxati
 
 ## API Endpoints
 
-The application also exposes REST API endpoints:
+Loyiha REST API endpointlarini ham taqdim etadi:
 
-- `GET /barbershops` - List all barbershops
-- `POST /barbershops` - Create a barbershop
-- `GET /barbers` - List all barbers
-- `POST /barbers` - Create a barber
-- `GET /bookings` - List all bookings
-- `POST /bookings` - Create a booking
-- `PATCH /bookings/:id/approve` - Approve a booking
-- `PATCH /bookings/:id/reject` - Reject a booking
+### Barbershop Endpoints
+
+- `GET /barbershops` - Barcha barbershoplar ro'yxati
+- `POST /barbershops` - Yangi barbershop yaratish
+- `GET /barbershops/:id` - ID bo'yicha barbershop olish
+- `PATCH /barbershops/:id` - Barbershopni yangilash
+- `DELETE /barbershops/:id` - Barbershopni o'chirish
+
+### Barber Endpoints
+
+- `GET /barbers` - Barcha barberlar ro'yxati
+- `POST /barbers` - Yangi barber yaratish
+- `GET /barbers/:id` - ID bo'yicha barber olish
+- `PATCH /barbers/:id` - Barberni yangilash
+- `DELETE /barbers/:id` - Barberni o'chirish
+
+### Client Endpoints
+
+- `GET /clients` - Barcha mijozlar ro'yxati
+- `POST /clients` - Yangi mijoz yaratish
+- `GET /clients/:id` - ID bo'yicha mijoz olish
+- `PATCH /clients/:id` - Mijozni yangilash
+- `DELETE /clients/:id` - Mijozni o'chirish
+
+### Booking Endpoints
+
+- `GET /bookings` - Barcha bookinglar ro'yxati
+- `POST /bookings` - Yangi booking yaratish
+- `GET /bookings/:id` - ID bo'yicha booking olish
+- `PATCH /bookings/:id/approve` - Bookingni tasdiqlash
+- `PATCH /bookings/:id/reject` - Bookingni rad etish
+
+### Barber Request Endpoints
+
+- `GET /barber-requests` - Barcha barber so'rovlari ro'yxati
+- `POST /barber-requests` - Yangi barber so'rovi yaratish
+- `GET /barber-requests/pending` - Kutilayotgan so'rovlar ro'yxati
+- `GET /barber-requests/:id` - ID bo'yicha so'rov olish
+- `PATCH /barber-requests/:id/approve` - So'rovni tasdiqlash
+- `PATCH /barber-requests/:id/reject` - So'rovni rad etish
+- `DELETE /barber-requests/:id` - So'rovni o'chirish
+
+> 💡 **Eslatma**: Barcha API endpointlar Swagger dokumentatsiyasida mavjud: `http://localhost:3000/api`
 
 ## Database Schema
 
-### Barbershop
-- `id` (Primary Key)
-- `name`
-- `address`
+### Barbershop (barbershops)
 
-### Barber
-- `id` (Primary Key)
-- `name`
-- `tg_id` (Telegram User ID)
-- `barbershop_id` (Foreign Key)
+- `id` (Primary Key, Auto Increment)
+- `name` (VARCHAR)
+- `address` (VARCHAR, nullable)
+- `created_at` (Timestamp)
+- `updated_at` (Timestamp)
 
-### Client
-- `id` (Primary Key)
-- `tg_id` (Telegram User ID)
-- `full_name`
-- `username`
+### Barber (barbers)
 
-### Booking
-- `id` (Primary Key)
-- `client_id` (Foreign Key)
-- `barber_id` (Foreign Key)
-- `date`
-- `time`
-- `status` (pending | approved | rejected)
+- `id` (Primary Key, Auto Increment)
+- `name` (VARCHAR)
+- `tg_id` (BIGINT, Unique) - Telegram User ID
+- `barbershop_id` (Foreign Key → barbershops.id)
+- `created_at` (Timestamp)
+- `updated_at` (Timestamp)
+
+### Client (clients)
+
+- `id` (Primary Key, Auto Increment)
+- `tg_id` (BIGINT, Unique) - Telegram User ID
+- `full_name` (VARCHAR, nullable)
+- `username` (VARCHAR, nullable)
+- `created_at` (Timestamp)
+- `updated_at` (Timestamp)
+
+### Barber Request (barber_requests)
+
+- `id` (Primary Key, Auto Increment)
+- `tg_id` (BIGINT) - Telegram User ID
+- `full_name` (VARCHAR, nullable)
+- `username` (VARCHAR, nullable)
+- `barbershop_id` (Foreign Key → barbershops.id)
+- `status` (ENUM: pending | approved | rejected)
+- `created_at` (Timestamp)
+- `updated_at` (Timestamp)
+
+### Booking (bookings)
+
+- `id` (Primary Key, Auto Increment)
+- `client_id` (Foreign Key → clients.id)
+- `barber_id` (Foreign Key → barbers.id)
+- `date` (DATE)
+- `time` (VARCHAR)
+- `status` (ENUM: pending | approved | rejected)
+- `created_at` (Timestamp)
+- `updated_at` (Timestamp)
 
 ## Development
 

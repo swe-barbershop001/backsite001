@@ -32,6 +32,9 @@ export class Barber {
   @OneToMany(() => Booking, (booking) => booking.barber)
   bookings: Booking[];
 
+  @Column({ default: false })
+  working: boolean; // true = barber shift started, false = shift ended
+
   @CreateDateColumn()
   createdAt: Date;
 

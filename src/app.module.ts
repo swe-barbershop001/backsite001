@@ -6,6 +6,7 @@ import { BarbershopModule } from './modules/barbershop/barbershop.module';
 import { BarberModule } from './modules/barber/barber.module';
 import { ClientModule } from './modules/client/client.module';
 import { BookingModule } from './modules/booking/booking.module';
+import { BarberRequestModule } from './modules/barber-request/barber-request.module';
 import { BotModule } from './modules/bot/bot.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { BotModule } from './modules/bot/bot.module';
     BarberModule,
     ClientModule,
     BookingModule,
+    BarberRequestModule,
     BotModule,
   ],
 })

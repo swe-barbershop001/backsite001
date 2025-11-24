@@ -52,5 +52,21 @@ export class BarberService {
   async remove(id: number): Promise<void> {
     await this.barberRepository.delete(id);
   }
+
+  async startShift(tgId: number): Promise<Barber | null> {
+    const barber = await this.findByTgId(tgId);
+    if (!barber) {
+      return null;
+    }
+    return await this.update(barber.id, { working: true });
+  }
+
+  async endShift(tgId: number): Promise<Barber | null> {
+    const barber = await this.findByTgId(tgId);
+    if (!barber) {
+      return null;
+    }
+    return await this.update(barber.id, { working: false });
+  }
 }
 
