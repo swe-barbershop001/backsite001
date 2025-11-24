@@ -801,6 +801,9 @@ export class BotService implements OnModuleInit {
     }
   }
 
+  /**
+   * Bookingni tasdiqlash (pending yoki cancelled bookinglarni)
+   */
   private async handleApproveBooking(ctx: Context) {
     try {
       const data = ctx.callbackQuery?.data;
@@ -810,6 +813,18 @@ export class BotService implements OnModuleInit {
       if (!match) return;
 
       const bookingId = parseInt(match[1], 10);
+
+      // Avval bookingni olish, holatini tekshirish
+      const existingBooking = await this.bookingService.findOne(bookingId);
+      if (!existingBooking) {
+        await ctx.answerCallbackQuery({ text: 'Bron topilmadi.' });
+        return;
+      }
+
+      const wasCancelled = existingBooking.status === BookingStatus.CANCELLED;
+      const wasRejected = existingBooking.status === BookingStatus.REJECTED;
+
+      // Bookingni tasdiqlash
       const booking = await this.bookingService.approve(bookingId);
 
       if (!booking) {
@@ -828,24 +843,48 @@ export class BotService implements OnModuleInit {
         return;
       }
 
-      // Notify client
-      await this.bot.api.sendMessage(
-        client.tgId,
-        `✅ Sizning broningiz tasdiqlandi!\n\n` +
+      // Clientga xabar yuborish (cancelled yoki rejected bo'lsa alohida xabar)
+      let clientMessage: string;
+      if (wasCancelled || wasRejected) {
+        clientMessage =
+          `✅ Sizning broningiz qaytadan tasdiqlandi!\n\n` +
           `Barber: ${barber.name}\n` +
           `Sana: ${booking.date}\n` +
-          `Vaqt: ${booking.time}`,
-      );
+          `Vaqt: ${booking.time}`;
+      } else {
+        clientMessage =
+          `✅ Sizning broningiz tasdiqlandi!\n\n` +
+          `Barber: ${barber.name}\n` +
+          `Sana: ${booking.date}\n` +
+          `Vaqt: ${booking.time}`;
+      }
 
-      // Update barber's message
-      await ctx.editMessageText(
-        `✅ Bron tasdiqlandi\n\n` +
+      await this.bot.api.sendMessage(client.tgId, clientMessage);
+
+      // Barber xabarini yangilash
+      let barberMessage: string;
+      if (wasCancelled || wasRejected) {
+        barberMessage =
+          `✅ Bron qaytadan tasdiqlandi\n\n` +
           `Mijoz: ${client.fullName || "Noma'lum"}\n` +
           `Sana: ${booking.date}\n` +
-          `Vaqt: ${booking.time}`,
-      );
+          `Vaqt: ${booking.time}`;
+      } else {
+        barberMessage =
+          `✅ Bron tasdiqlandi\n\n` +
+          `Mijoz: ${client.fullName || "Noma'lum"}\n` +
+          `Sana: ${booking.date}\n` +
+          `Vaqt: ${booking.time}`;
+      }
 
-      await ctx.answerCallbackQuery({ text: 'Bron tasdiqlandi!' });
+      await ctx.editMessageText(barberMessage);
+
+      const answerText =
+        wasCancelled || wasRejected
+          ? 'Bron qaytadan tasdiqlandi!'
+          : 'Bron tasdiqlandi!';
+
+      await ctx.answerCallbackQuery({ text: answerText });
 
       // Send updated keyboard
       await ctx.reply('Asosiy buyruqlar:', {
@@ -1216,12 +1255,19 @@ export class BotService implements OnModuleInit {
       });
     }
 
-    // Pending va approved bookinglar uchun tugmalarni ko'rsatish
-    if (pendingBookings.length > 0 || approvedBookings.length > 0) {
+    // Pending, approved, cancelled va rejected bookinglar uchun tugmalarni ko'rsatish
+    if (
+      pendingBookings.length > 0 ||
+      approvedBookings.length > 0 ||
+      cancelledBookings.length > 0 ||
+      rejectedBookings.length > 0
+    ) {
       await ctx.reply(message, {
         reply_markup: getBarberAllBookingsKeyboard(
           pendingBookings,
           approvedBookings,
+          cancelledBookings,
+          rejectedBookings,
         ),
       });
     } else {
