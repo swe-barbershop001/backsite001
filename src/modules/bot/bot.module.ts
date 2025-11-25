@@ -1,20 +1,16 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { BotService } from './bot.service';
-import { BarbershopModule } from '../barbershop/barbershop.module';
-import { BarberModule } from '../barber/barber.module';
 import { ClientModule } from '../client/client.module';
+import { BarberModule } from '../barber/barber.module';
+import { BarberServiceModule } from '../barber-service/barber-service.module';
 import { BookingModule } from '../booking/booking.module';
-import { BarberRequestModule } from '../barber-request/barber-request.module';
 
 @Module({
   imports: [
-    ConfigModule,
-    BarbershopModule,
-    BarberModule,
     ClientModule,
+    BarberModule,
+    BarberServiceModule,
     BookingModule,
-    BarberRequestModule,
   ],
   providers: [BotService],
   exports: [BotService],

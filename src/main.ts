@@ -1,58 +1,32 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
+  console.log('[Main] Starting NestJS application...');
+  const app = await NestFactory.create(AppModule);
 
-  try {
-    const app = await NestFactory.create(AppModule);
+  // Swagger Configuration
+  console.log('[Main] Setting up Swagger documentation...');
+  const config = new DocumentBuilder()
+    .setTitle('Barbershop Bot API')
+    .setDescription('Barbershop Bot API Documentation')
+    .setVersion('1.0')
+    .addTag('clients', 'Client management endpoints')
+    .addTag('barbers', 'Barber management endpoints')
+    .addTag('barber-services', 'Barber service management endpoints')
+    .addTag('bookings', 'Booking management endpoints')
+    .build();
 
-    // Enable CORS
-    app.enableCors();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
 
-    // Global validation pipe
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
 
-    // Swagger konfiguratsiyasi
-    const config = new DocumentBuilder()
-      .setTitle('Barbershop Booking Bot API')
-      .setDescription(
-        'Barbershop Booking Telegram Bot uchun API dokumentatsiyasi',
-      )
-      .setVersion('1.0')
-      .addTag('barbershops', 'Barbershop boshqaruvi endpointlari')
-      .addTag('barbers', 'Barber boshqaruvi endpointlari')
-      .addTag('clients', 'Mijoz boshqaruvi endpointlari')
-      .addTag('bookings', 'Bron qilish boshqaruvi endpointlari')
-      .build();
-
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api', app, document, {
-      swaggerOptions: {
-        persistAuthorization: true,
-      },
-    });
-
-    // Bot service will be initialized automatically via onModuleInit
-
-    const port = process.env.PORT || 3000;
-    await app.listen(port);
-
-    logger.log(`🚀 Application is running on: http://localhost:${port}`);
-    logger.log(`📚 Swagger documentation: http://localhost:${port}/api`);
-    logger.log(`🤖 Telegram bot is running`);
-  } catch (error) {
-    logger.error('Failed to start application:', error);
-    process.exit(1);
-  }
+  console.log(`[Main] ✅ Application is running on: http://localhost:${port}`);
+  console.log(`[Main] 📚 Swagger documentation: http://localhost:${port}/api`);
+  console.log('[Main] Waiting for bot initialization...');
 }
 
 bootstrap();

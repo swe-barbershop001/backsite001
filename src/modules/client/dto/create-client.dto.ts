@@ -1,19 +1,24 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsString, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateClientDto {
-  @ApiProperty({ description: 'Telegram foydalanuvchi ID', example: 123456789 })
-  @IsNumber()
-  tgId: number;
-
-  @ApiProperty({ description: 'To\'liq ism', example: 'John Doe', required: false })
-  @IsOptional()
+  @ApiProperty({ description: 'Client full name', example: 'John Doe' })
   @IsString()
-  fullName?: string;
+  @IsNotEmpty()
+  full_name: string;
 
-  @ApiProperty({ description: 'Telegram username', example: 'johndoe', required: false })
-  @IsOptional()
+  @ApiProperty({ description: 'Client phone number', example: '+998901234567' })
   @IsString()
-  username?: string;
+  @IsNotEmpty()
+  phone_number: string;
+
+  @ApiProperty({ description: 'Telegram user ID', example: '123456789' })
+  @IsString()
+  @IsNotEmpty()
+  tg_id: string;
+
+  @ApiPropertyOptional({ description: 'Telegram username', example: 'johndoe' })
+  @IsString()
+  tg_username?: string;
 }
 

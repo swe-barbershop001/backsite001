@@ -2,9 +2,8 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  OneToMany,
   CreateDateColumn,
-  UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { Booking } from '../../booking/entities/booking.entity';
 
@@ -13,22 +12,22 @@ export class Client {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'bigint', unique: true })
-  tgId: number;
+  @Column()
+  full_name: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  fullName: string;
+  @Column({ unique: true })
+  phone_number: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  username: string;
+  @Column({ unique: true })
+  tg_id: string;
+
+  @Column({ nullable: true })
+  tg_username: string;
 
   @OneToMany(() => Booking, (booking) => booking.client)
   bookings: Booking[];
 
   @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
+  created_at: Date;
 }
 

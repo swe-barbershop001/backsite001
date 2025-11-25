@@ -1,17 +1,25 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBarberDto {
-  @ApiProperty({ description: 'Barber ismi', example: 'John Doe' })
+  @ApiProperty({ description: 'Barber name', example: 'John Doe' })
   @IsString()
+  @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: 'Telegram foydalanuvchi ID', example: 123456789 })
-  @IsNumber()
-  tgId: number;
+  @ApiPropertyOptional({ description: 'Telegram user ID', example: '123456789' })
+  @IsString()
+  @IsOptional()
+  tg_id?: string;
 
-  @ApiProperty({ description: 'Barbershop ID', example: 1 })
-  @IsNumber()
-  barbershopId: number;
+  @ApiPropertyOptional({ description: 'Telegram username', example: 'johndoe' })
+  @IsString()
+  @IsOptional()
+  tg_username?: string;
+
+  @ApiPropertyOptional({ description: 'Working status', example: false, default: false })
+  @IsBoolean()
+  @IsOptional()
+  working?: boolean;
 }
 

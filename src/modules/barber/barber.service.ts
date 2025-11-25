@@ -2,71 +2,62 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Barber } from './entities/barber.entity';
-import { CreateBarberDto } from './dto/create-barber.dto';
-import { UpdateBarberDto } from './dto/update-barber.dto';
 
 @Injectable()
 export class BarberService {
   constructor(
     @InjectRepository(Barber)
-    private readonly barberRepository: Repository<Barber>,
+    private barberRepository: Repository<Barber>,
   ) {}
 
-  async create(createBarberDto: CreateBarberDto): Promise<Barber> {
-    const barber = this.barberRepository.create(createBarberDto);
-    return await this.barberRepository.save(barber);
-  }
-
-  async findAll(): Promise<Barber[]> {
-    return await this.barberRepository.find({
-      relations: ['barbershop'],
-    });
-  }
-
-  async findByBarbershop(barbershopId: number): Promise<Barber[]> {
-    return await this.barberRepository.find({
-      where: { barbershopId },
-      relations: ['barbershop'],
-    });
-  }
-
-  async findByTgId(tgId: number): Promise<Barber | null> {
+  async findByTgId(tgId: string): Promise<Barber | null> {
+    if (!tgId) return null;
     return await this.barberRepository.findOne({
-      where: { tgId },
-      relations: ['barbershop'],
+      where: { tg_id: tgId },
+      relations: ['bookings', 'bookings.service', 'bookings.client'],
+    });
+  }
+
+  async findWorkingBarbers(): Promise<Barber[]> {
+    return await this.barberRepository.find({
+      where: { working: true },
     });
   }
 
   async findOne(id: number): Promise<Barber | null> {
     return await this.barberRepository.findOne({
       where: { id },
-      relations: ['barbershop'],
+      relations: ['bookings'],
     });
   }
 
-  async update(id: number, updateBarberDto: UpdateBarberDto): Promise<Barber | null> {
-    await this.barberRepository.update(id, updateBarberDto);
-    return await this.findOne(id);
+  async findAll(): Promise<Barber[]> {
+    return await this.barberRepository.find({
+      relations: ['bookings'],
+    });
   }
 
-  async remove(id: number): Promise<void> {
-    await this.barberRepository.delete(id);
-  }
-
-  async startShift(tgId: number): Promise<Barber | null> {
-    const barber = await this.findByTgId(tgId);
+  async updateWorkingStatus(id: number, working: boolean): Promise<Barber> {
+    await this.barberRepository.update(id, { working });
+    const barber = await this.findOne(id);
     if (!barber) {
-      return null;
+      throw new Error(`Barber with ID ${id} not found`);
     }
-    return await this.update(barber.id, { working: true });
+    return barber;
   }
 
-  async endShift(tgId: number): Promise<Barber | null> {
-    const barber = await this.findByTgId(tgId);
-    if (!barber) {
-      return null;
+  async create(barberData: Partial<Barber>): Promise<Barber> {
+    // Check if tg_id is provided and unique
+    if (barberData.tg_id) {
+      const existingBarber = await this.barberRepository.findOne({
+        where: { tg_id: barberData.tg_id },
+      });
+      if (existingBarber) {
+        throw new Error(`Barber with tg_id ${barberData.tg_id} already exists`);
+      }
     }
-    return await this.update(barber.id, { working: false });
+    const barber = this.barberRepository.create(barberData);
+    return await this.barberRepository.save(barber);
   }
 }
 

@@ -1,18 +1,9 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  ParseIntPipe,
-  Query,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Param, Patch, Delete, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
-import { UpdateBookingDto } from './dto/update-booking.dto';
+import { CreateMultipleBookingsDto } from './dto/create-multiple-bookings.dto';
+import { BookingStatus } from '../../common/enums/booking-status.enum';
 
 @ApiTags('bookings')
 @Controller('bookings')
@@ -20,89 +11,85 @@ export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Yangi bron yaratish' })
-  @ApiResponse({ status: 201, description: 'Bron muvaffaqiyatli yaratildi' })
-  @ApiResponse({ status: 400, description: 'Noto\'g\'ri so\'rov' })
+  @ApiOperation({ summary: 'Create a new booking (single service)' })
+  @ApiResponse({ status: 201, description: 'Booking successfully created' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
   create(@Body() createBookingDto: CreateBookingDto) {
     return this.bookingService.create(createBookingDto);
   }
 
+  @Post('multiple')
+  @ApiOperation({ summary: 'Create multiple bookings (multiple services)' })
+  @ApiResponse({ status: 201, description: 'Bookings successfully created' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  createMultiple(@Body() createMultipleBookingsDto: CreateMultipleBookingsDto) {
+    return this.bookingService.createMultiple(createMultipleBookingsDto);
+  }
+
   @Get()
-  @ApiOperation({ summary: 'Barcha bronlarni olish yoki barber/mijoz bo\'yicha filtrlash' })
-  @ApiQuery({ name: 'barberId', required: false, type: Number, description: 'Barber ID bo\'yicha filtrlash' })
-  @ApiQuery({ name: 'clientId', required: false, type: Number, description: 'Mijoz ID bo\'yicha filtrlash' })
-  @ApiResponse({ status: 200, description: 'Bronlar ro\'yxati' })
-  findAll(
-    @Query('barberId') barberId?: string,
-    @Query('clientId') clientId?: string,
-  ) {
-    if (barberId) {
-      return this.bookingService.findByBarber(parseInt(barberId, 10));
-    }
-    if (clientId) {
-      return this.bookingService.findByClient(parseInt(clientId, 10));
-    }
+  @ApiOperation({ summary: 'Get all bookings' })
+  @ApiResponse({ status: 200, description: 'List of all bookings' })
+  findAll() {
     return this.bookingService.findAll();
   }
 
-  @Get('available-slots')
-  @ApiOperation({ summary: 'Barber uchun belgilangan sanada mavjud vaqtlarni olish' })
-  @ApiQuery({ name: 'barberId', type: Number, description: 'Barber ID' })
-  @ApiQuery({ name: 'date', type: String, description: 'Sana (YYYY-MM-DD)' })
-  @ApiResponse({ status: 200, description: 'Mavjud vaqtlar ro\'yxati' })
-  getAvailableSlots(
-    @Query('barberId', ParseIntPipe) barberId: number,
-    @Query('date') date: string,
-  ) {
-    return this.bookingService.getAvailableTimeSlots(barberId, date);
+  @Get('client/:clientId')
+  @ApiOperation({ summary: 'Get all bookings for a specific client' })
+  @ApiParam({ name: 'clientId', type: 'number', description: 'Client ID' })
+  @ApiResponse({ status: 200, description: 'List of bookings for the client' })
+  findByClient(@Param('clientId') clientId: string) {
+    return this.bookingService.findByClientId(+clientId);
+  }
+
+  @Get('barber/:barberId')
+  @ApiOperation({ summary: 'Get all bookings for a specific barber' })
+  @ApiParam({ name: 'barberId', type: 'number', description: 'Barber ID' })
+  @ApiResponse({ status: 200, description: 'List of bookings for the barber' })
+  findByBarber(@Param('barberId') barberId: string) {
+    return this.bookingService.findByBarberId(+barberId);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'ID bo\'yicha bron olish' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Bron ID' })
-  @ApiResponse({ status: 200, description: 'Bron topildi' })
-  @ApiResponse({ status: 404, description: 'Bron topilmadi' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.bookingService.findOne(id);
+  @ApiOperation({ summary: 'Get a booking by ID' })
+  @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
+  @ApiResponse({ status: 200, description: 'Booking found' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  findOne(@Param('id') id: string) {
+    return this.bookingService.findOne(+id);
   }
 
-  @Patch(':id')
-  @ApiOperation({ summary: 'Bronni yangilash' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Bron ID' })
-  @ApiResponse({ status: 200, description: 'Bron muvaffaqiyatli yangilandi' })
-  @ApiResponse({ status: 404, description: 'Bron topilmadi' })
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateBookingDto: UpdateBookingDto,
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Update booking status' })
+  @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
+  @ApiBody({ 
+    schema: { 
+      type: 'object', 
+      properties: { 
+        status: { 
+          type: 'string', 
+          enum: ['pending', 'approved', 'rejected', 'cancelled'],
+          description: 'Booking status'
+        } 
+      } 
+    } 
+  })
+  @ApiResponse({ status: 200, description: 'Booking status updated' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: BookingStatus,
   ) {
-    return this.bookingService.update(id, updateBookingDto);
-  }
-
-  @Patch(':id/approve')
-  @ApiOperation({ summary: 'Bronni tasdiqlash' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Bron ID' })
-  @ApiResponse({ status: 200, description: 'Bron muvaffaqiyatli tasdiqlandi' })
-  @ApiResponse({ status: 404, description: 'Bron topilmadi' })
-  approve(@Param('id', ParseIntPipe) id: number) {
-    return this.bookingService.approve(id);
-  }
-
-  @Patch(':id/reject')
-  @ApiOperation({ summary: 'Bronni rad etish' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Bron ID' })
-  @ApiResponse({ status: 200, description: 'Bron muvaffaqiyatli rad etildi' })
-  @ApiResponse({ status: 404, description: 'Bron topilmadi' })
-  reject(@Param('id', ParseIntPipe) id: number) {
-    return this.bookingService.reject(id);
+    return this.bookingService.updateStatus(+id, status);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Bronni o\'chirish' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Bron ID' })
-  @ApiResponse({ status: 200, description: 'Bron muvaffaqiyatli o\'chirildi' })
-  @ApiResponse({ status: 404, description: 'Bron topilmadi' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.bookingService.remove(id);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a booking' })
+  @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
+  @ApiResponse({ status: 204, description: 'Booking successfully deleted' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  async remove(@Param('id') id: string) {
+    await this.bookingService.remove(+id);
   }
 }
 

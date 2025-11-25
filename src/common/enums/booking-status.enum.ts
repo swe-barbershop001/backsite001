@@ -5,8 +5,3 @@ export enum BookingStatus {
   CANCELLED = 'cancelled',
 }
 
-export enum UserRole {
-  CLIENT = 'client',
-  BARBER = 'barber',
-  ADMIN = 'admin',
-}

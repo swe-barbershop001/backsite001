@@ -1,8 +1,8 @@
-import { IsNumber, IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
+import { IsNumber, IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, ArrayMinSize } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
 
-export class CreateBookingDto {
+export class CreateMultipleBookingsDto {
   @ApiProperty({ description: 'Client ID', example: 1 })
   @IsNumber()
   @IsNotEmpty()
@@ -13,10 +13,16 @@ export class CreateBookingDto {
   @IsNotEmpty()
   barber_id: number;
 
-  @ApiProperty({ description: 'Service ID', example: 1 })
-  @IsNumber()
+  @ApiProperty({ 
+    description: 'Service IDs array', 
+    example: [1, 2, 3],
+    type: [Number]
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsNumber({}, { each: true })
   @IsNotEmpty()
-  service_id: number;
+  service_ids: number[];
 
   @ApiProperty({ description: 'Booking date (yyyy-mm-dd)', example: '2025-01-25' })
   @IsString()
@@ -31,8 +37,8 @@ export class CreateBookingDto {
   @ApiPropertyOptional({ 
     description: 'Booking status', 
     enum: BookingStatus,
-    default: BookingStatus.PENDING,
-    example: BookingStatus.PENDING
+    default: BookingStatus.APPROVED,
+    example: BookingStatus.APPROVED
   })
   @IsEnum(BookingStatus)
   @IsOptional()
