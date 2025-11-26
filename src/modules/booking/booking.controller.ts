@@ -21,7 +21,6 @@ import {
 } from '@nestjs/swagger';
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
-import { CreateMultipleBookingsDto } from './dto/create-multiple-bookings.dto';
 import { BookingStatus } from '../../common/enums/booking-status.enum';
 import { AuthGuard, RoleGuard } from 'src/common/guards';
 import { Role } from 'src/common/decorators';
@@ -45,21 +44,11 @@ export class BookingController {
   @Post()
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new booking (single service)' })
-  @ApiResponse({ status: 201, description: 'Booking successfully created' })
+  @ApiOperation({ summary: 'Create booking(s) - single or multiple services in one request' })
+  @ApiResponse({ status: 201, description: 'Booking(s) successfully created' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   create(@Body() createBookingDto: CreateBookingDto) {
     return this.bookingService.create(createBookingDto);
-  }
-
-  @Post('multiple')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create multiple bookings (multiple services)' })
-  @ApiResponse({ status: 201, description: 'Bookings successfully created' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  createMultiple(@Body() createMultipleBookingsDto: CreateMultipleBookingsDto) {
-    return this.bookingService.createMultiple(createMultipleBookingsDto);
   }
 
   @Get()

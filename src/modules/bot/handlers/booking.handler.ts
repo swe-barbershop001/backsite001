@@ -12,9 +12,9 @@ export class BookingHandler {
   private bookingStates = new Map<
     number,
     {
-      step: 'service' | 'barber' | 'date' | 'time' | 'time_input' | 'comment';
-      serviceIds?: number[];
+      step: 'barber' | 'service' | 'date' | 'time' | 'time_input' | 'comment';
       barberId?: number;
+      serviceIds?: number[];
       date?: string;
       bookingIds?: number[]; // Yaratilgan booking ID'lari
     }
@@ -36,37 +36,37 @@ export class BookingHandler {
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
     }
 
-    // Get all services
-    const services = await this.barberServiceService.findAll();
-    if (services.length === 0) {
-      return ctx.reply("Hozircha mavjud xizmatlar yo'q.");
+    // Get working barbers
+    const barbers = await this.userService.findWorkingBarbers();
+    if (barbers.length === 0) {
+      return ctx.reply(
+        "Hozircha ishlayotgan barberlar yo'q. Iltimos, keyinroq urinib ko'ring.",
+      );
     }
 
-    // Create inline keyboard for services (multiple selection)
+    // Create inline keyboard for barbers
     const keyboard = new InlineKeyboard();
-    services.forEach((service) => {
+    barbers.forEach((barber) => {
+      const workTime = barber.work_start_time && barber.work_end_time
+        ? ` (${barber.work_start_time} - ${barber.work_end_time})`
+        : '';
+      const usernameDisplay = barber.tg_username ? ` (@${barber.tg_username})` : '';
       keyboard
         .text(
-          `⬜ ${service.name} — ${service.price} so'm (${service.duration} min)`,
-          `service_toggle_${service.id}`,
+          `👤 ${barber.name}${usernameDisplay}${workTime}`,
+          `barber_select_${barber.id}`,
         )
         .row();
     });
-    keyboard
-      .text('⬅️ Ortga qaytish', 'menu_back')
-      .text('✅ Davom etish', 'service_continue')
-      .row();
+    keyboard.text('⬅️ Ortga qaytish', 'menu_back').row();
 
     if (!ctx.from) return;
-    this.bookingStates.set(ctx.from.id, { step: 'service', serviceIds: [] });
+    this.bookingStates.set(ctx.from.id, { step: 'barber' });
 
-    const selectedCount = 0;
     const message = `
-<b>✂️ Xizmatlarni tanlang</b>
+<b>💈 Barberni tanlang</b>
 
-<i>(bir nechta tanlash mumkin)</i>
-
-📌 <b>Tanlangan xizmatlar:</b> ${selectedCount}
+Iltimos, xizmat olish uchun barberni tanlang:
 
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -91,7 +91,7 @@ export class BookingHandler {
     if (!tgId || !ctx.from) return;
 
     const state = this.bookingStates.get(ctx.from.id);
-    if (!state || state.step !== 'service') return;
+    if (!state || state.step !== 'service' || !state.barberId) return;
 
     const serviceIds = state.serviceIds || [];
     const serviceIndex = serviceIds.indexOf(serviceId);
@@ -109,6 +109,9 @@ export class BookingHandler {
       serviceIds,
     });
 
+    const barber = await this.userService.findOne(state.barberId);
+    if (!barber) return;
+
     // Get all services to update keyboard
     const services = await this.barberServiceService.findAll();
     const keyboard = new InlineKeyboard();
@@ -124,7 +127,7 @@ export class BookingHandler {
     });
 
     keyboard
-      .text('⬅️ Ortga qaytish', 'menu_back')
+      .text('⬅️ Ortga qaytish', 'back_to_barbers')
       .text('✅ Davom etish', 'service_continue')
       .row();
 
@@ -133,7 +136,15 @@ export class BookingHandler {
     );
     const selectedCount = selectedServices.length;
 
+    const workTime = barber.work_start_time && barber.work_end_time
+      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+      : '';
+
     const message = `
+<b>💈 Barber:</b> ${barber.name}${workTime}
+
+━━━━━━━━━━━━━━━━━━
+
 <b>✂️ Xizmatlarni tanlang</b>
 
 <i>(bir nechta tanlash mumkin)</i>
@@ -149,89 +160,63 @@ export class BookingHandler {
     });
   }
 
-  async handleServiceContinue(ctx: Context) {
+  async handleBarberSelect(ctx: Context, barberId: number) {
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
-    const state = this.bookingStates.get(ctx.from.id);
-    if (!state || state.step !== 'service') return;
-
-    const serviceIds = state.serviceIds || [];
-    if (serviceIds.length === 0) {
-      return ctx.reply('Iltimos, kamida bitta xizmat tanlang.');
+    const barber = await this.userService.findOne(barberId);
+    if (!barber) {
+      return ctx.reply('Barber topilmadi.');
     }
 
-    const client = await this.userService.findClientByTgId(tgId);
-    if (!client) return;
-
-    // Get selected services
-    const selectedServices: BarberServiceEntity[] = [];
-    for (const serviceId of serviceIds) {
-      const service = await this.barberServiceService.findOne(serviceId);
-      if (service) {
-        selectedServices.push(service);
-      }
+    if (!barber.working) {
+      return ctx.reply('Bu barber hozir ishlamayapti.');
     }
 
-    if (selectedServices.length === 0) {
-      return ctx.reply('Xizmatlar topilmadi.');
+    // Get all services
+    const services = await this.barberServiceService.findAll();
+    if (services.length === 0) {
+      return ctx.reply("Hozircha mavjud xizmatlar yo'q.");
     }
 
-    // Get working barbers
-    const barbers = await this.userService.findWorkingBarbers();
-    if (barbers.length === 0) {
-      return ctx.reply(
-        "Hozircha ishlayotgan barberlar yo'q. Iltimos, keyinroq urinib ko'ring.",
-      );
-    }
-
-    // Calculate totals
-    const totalPrice = selectedServices.reduce(
-      (sum, s) => sum + Number(s.price),
-      0,
-    );
-    const totalDuration = selectedServices.reduce(
-      (sum, s) => sum + s.duration,
-      0,
-    );
-
-    // Format services list
-    const servicesList = selectedServices
-      .map((s) => `✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
-      .join('\n');
-
-    // Premium card message
-    const message = `
-<b>🧾 Tanlangan xizmatlar</b>
-
-━━━━━━━━━━━━━━━━━━
-${servicesList}
-━━━━━━━━━━━━━━━━━━
-
-💰 <b>Jami narx:</b> ${totalPrice} so'm
-⏱ <b>Jami vaqt:</b> ${totalDuration} daqiqa
-
-━━━━━━━━━━━━━━━━━━
-
-<b>💈 Barberni tanlang:</b>
-`;
-
-    // Create premium inline keyboard for barbers
+    // Create inline keyboard for services (multiple selection)
     const keyboard = new InlineKeyboard();
-    barbers.forEach((barber) => {
+    services.forEach((service) => {
       keyboard
         .text(
-          `👤 ${barber.name}${barber.tg_username ? ` (@${barber.tg_username})` : ''}`,
-          `barber_${barber.id}_${serviceIds.join(',')}`,
+          `⬜ ${service.name} — ${service.price} so'm (${service.duration} min)`,
+          `service_toggle_${service.id}`,
         )
         .row();
     });
-    keyboard.text('⬅️ Ortga qaytish', 'back_to_services').row();
+    keyboard
+      .text('⬅️ Ortga qaytish', 'back_to_barbers')
+      .text('✅ Davom etish', 'service_continue')
+      .row();
 
     this.bookingStates.set(ctx.from.id, {
-      step: 'barber',
-      serviceIds,
+      step: 'service',
+      barberId,
+      serviceIds: [],
     });
+
+    const workTime = barber.work_start_time && barber.work_end_time
+      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+      : '';
+
+    const message = `
+<b>💈 Barber:</b> ${barber.name}${workTime}
+
+━━━━━━━━━━━━━━━━━━
+
+<b>✂️ Xizmatlarni tanlang</b>
+
+<i>(bir nechta tanlash mumkin)</i>
+
+📌 <b>Tanlangan xizmatlar:</b> 0
+
+━━━━━━━━━━━━━━━━━━
+`;
 
     // Eski xabarni yangi xabar bilan almashtirish
     try {
@@ -248,24 +233,21 @@ ${servicesList}
     }
   }
 
-  async handleBarberSelection(
-    ctx: Context,
-    barberId: number,
-    serviceIds: number[],
-  ) {
+  async handleServiceContinue(ctx: Context) {
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
-    const client = await this.userService.findClientByTgId(tgId);
-    if (!client) return;
+    const state = this.bookingStates.get(ctx.from.id);
+    if (!state || state.step !== 'service' || !state.barberId) return;
 
-    const barber = await this.userService.findOne(barberId);
-    if (!barber) {
-      return ctx.reply('Barber topilmadi.');
+    const serviceIds = state.serviceIds || [];
+    if (serviceIds.length === 0) {
+      return ctx.reply('Iltimos, kamida bitta xizmat tanlang.');
     }
 
-    if (!barber.working) {
-      return ctx.reply('Bu barber hozir ishlamayapti.');
+    const barber = await this.userService.findOne(state.barberId);
+    if (!barber) {
+      return ctx.reply('Barber topilmadi.');
     }
 
     // Get selected services
@@ -296,9 +278,13 @@ ${servicesList}
       .map((s) => `✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
       .join('\n');
 
+    const workTime = barber.work_start_time && barber.work_end_time
+      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+      : '';
+
     // Premium card message
     const message = `
-<b>💈 Barber:</b> ${barber.name}
+<b>💈 Barber:</b> ${barber.name}${workTime}
 
 <b>🧾 Tanlangan xizmatlar</b>
 
@@ -318,7 +304,7 @@ ${servicesList}
     for (let i = 0; i < 7; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
-      dates.push(date.toISOString().split('T')[0]); // yyyy-mm-dd
+      dates.push(date.toISOString().split('T')[0]);
     }
 
     // Create premium inline keyboard for dates (2 columns)
@@ -338,13 +324,13 @@ ${servicesList}
       if (index % 2 === 0) {
         keyboard.text(
           dateDisplay,
-          `date_${date}_${barberId}_${serviceIds.join(',')}`,
+          `date_${date}_${state.barberId}_${serviceIds.join(',')}`,
         );
       } else {
         keyboard
           .text(
             dateDisplay,
-            `date_${date}_${barberId}_${serviceIds.join(',')}`,
+            `date_${date}_${state.barberId}_${serviceIds.join(',')}`,
           )
           .row();
       }
@@ -354,12 +340,12 @@ ${servicesList}
     if (dates.length % 2 !== 0) {
       keyboard.row();
     }
-    keyboard.text('⬅️ Ortga qaytish', 'back_to_barbers').row();
+    keyboard.text('⬅️ Ortga qaytish', 'back_to_services').row();
 
     this.bookingStates.set(ctx.from.id, {
       step: 'date',
+      barberId: state.barberId,
       serviceIds,
-      barberId,
     });
 
     // Eski xabarni yangi xabar bilan almashtirish
@@ -377,6 +363,7 @@ ${servicesList}
     }
   }
 
+
   async handleDateSelection(
     ctx: Context,
     date: string,
@@ -388,6 +375,11 @@ ${servicesList}
 
     const client = await this.userService.findClientByTgId(tgId);
     if (!client) return;
+
+    const barber = await this.userService.findOne(barberId);
+    if (!barber) {
+      return ctx.reply('Barber topilmadi.');
+    }
 
     const serviceIds = serviceIdsStr.split(',').map((id) => parseInt(id));
 
@@ -410,9 +402,16 @@ ${servicesList}
       0,
     );
 
-    // Generate time slots
+    // Generate time slots based on barber's work hours
     const timeSlots: string[] = [];
-    for (let hour = 9; hour < 18; hour++) {
+    const startHour = barber.work_start_time 
+      ? parseInt(barber.work_start_time.split(':')[0])
+      : 9;
+    const endHour = barber.work_end_time
+      ? parseInt(barber.work_end_time.split(':')[0])
+      : 18;
+
+    for (let hour = startHour; hour < endHour; hour++) {
       timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
     }
 
@@ -520,6 +519,12 @@ Quyidagi vaqtlardan birini tanlang:
     const client = await this.userService.findClientByTgId(tgId);
     if (!client) return;
 
+    if (!client.phone_number) {
+      return ctx.reply('Telefon raqamingiz ro\'yxatdan o\'tmagan. Iltimos, profilni yangilang.');
+    }
+
+    const phoneNumber = client.phone_number; // TypeScript uchun
+
     const barber = await this.userService.findOne(barberId);
     if (!barber) {
       return ctx.reply('Barber topilmadi.');
@@ -558,45 +563,20 @@ Quyidagi vaqtlardan birini tanlang:
 
       // Create bookings for each service
     try {
-      const createdBookings: Awaited<
-        ReturnType<typeof this.bookingService.create>
-      >[] = [];
-      for (const service of selectedServices) {
-        const booking = await this.bookingService.create({
-          client_id: client.id,
-          barber_id: barberId,
-          service_id: service.id,
-          date,
-          time,
-        });
-        createdBookings.push(booking);
-      }
+      const booking = await this.bookingService.create({
+        phone_number: phoneNumber,
+        barber_id: barberId,
+        service_ids: selectedServices.map(s => s.id),
+        date,
+        time,
+      });
+      
+      const createdBookings = Array.isArray(booking) ? booking : [booking];
 
       // Clear booking state - comment so'ralmaydi, booking yakunlangandan keyin so'raladi
       this.bookingStates.delete(ctx.from.id);
 
-      // Notify admin
-      const adminTgId = this.configService.get<string>('ADMIN_TG_ID');
-      if (adminTgId) {
-        const totalPrice = selectedServices.reduce(
-          (sum, s) => sum + Number(s.price),
-          0,
-        );
-        let adminMessage =
-          `🆕 New booking:\n\n` +
-          `Client: ${client.name}${client.tg_username ? ` (@${client.tg_username})` : ''}\n` +
-          `Services:\n`;
-        selectedServices.forEach((s) => {
-          adminMessage += `• ${s.name} (${s.duration} min) - ${s.price} so'm\n`;
-        });
-        adminMessage +=
-          `\nTotal: ${totalPrice} so'm, ${totalDuration} min\n` +
-          `Barber: ${barber.name}${barber.tg_username ? ` (@${barber.tg_username})` : ''}\n` +
-          `Date: ${date}\n` +
-          `Time: ${time}`;
-
-        await ctx.api.sendMessage(adminTgId, adminMessage);
-      }
+      // Admin'larga xabar booking.service.ts ichidagi notifyAdmins metodi orqali yuboriladi
 
       // Notify barber if tg_id exists
       if (barber.tg_id) {
@@ -635,9 +615,11 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
           await ctx.api.sendMessage(barber.tg_id, barberMessage, {
             parse_mode: 'HTML',
           });
-        } catch (error) {
-          // Ignore errors if barber's tg_id is invalid
-          console.error('Failed to send message to barber:', error);
+        } catch (error: any) {
+          // Ignore errors if barber's tg_id is invalid or chat not found (test ma'lumotlari uchun normal)
+          if (!error?.description?.includes('chat not found') && !error?.description?.includes('Bad Request')) {
+            console.error('Failed to send message to barber:', error);
+          }
         }
       }
 
@@ -832,6 +814,11 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
+    const barber = await this.userService.findOne(barberId);
+    if (!barber) {
+      return ctx.reply('Barber topilmadi.');
+    }
+
     const serviceIds = serviceIdsStr.split(',').map((id) => parseInt(id));
 
     this.bookingStates.set(ctx.from.id, {
@@ -841,8 +828,12 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
       date,
     });
 
+    const workTimeRange = barber.work_start_time && barber.work_end_time
+      ? `${barber.work_start_time} - ${barber.work_end_time}`
+      : '09:00 - 18:00';
+
     return ctx.reply(
-      "Vaqtni kiriting (HH:mm formatida):\n\nMasalan: 14:30\n\nIltimos, 09:00 - 18:00 oralig'idagi vaqtni kiriting.",
+      `Vaqtni kiriting (HH:mm formatida):\n\nMasalan: 14:30\n\nIltimos, barberning ish vaqti oralig'idagi vaqtni kiriting (${workTimeRange}).`,
     );
   }
 
@@ -897,7 +888,7 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
     if (!userId) return false;
 
     const state = this.bookingStates.get(userId);
-    if (!state || state.step !== 'time_input') return false;
+    if (!state || state.step !== 'time_input' || !state.barberId) return false;
 
     // Validate time format (HH:mm)
     const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
@@ -907,23 +898,38 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
       );
     }
 
+    const barber = await this.userService.findOne(state.barberId);
+    if (!barber) {
+      return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+    }
+
     const [hours, minutes] = timeText.split(':').map(Number);
 
-    // Check if time is within working hours (9:00 - 18:00)
-    if (hours < 9 || hours >= 18) {
+    // Check if time is within barber's working hours
+    const startHour = barber.work_start_time 
+      ? parseInt(barber.work_start_time.split(':')[0])
+      : 9;
+    const endHour = barber.work_end_time
+      ? parseInt(barber.work_end_time.split(':')[0])
+      : 18;
+
+    if (hours < startHour || hours >= endHour) {
+      const workTimeRange = barber.work_start_time && barber.work_end_time
+        ? `${barber.work_start_time} - ${barber.work_end_time}`
+        : '09:00 - 18:00';
       return ctx.reply(
-        "Vaqt ish vaqti oralig'ida bo'lishi kerak (09:00 - 18:00).",
+        `Vaqt barberning ish vaqti oralig'ida bo'lishi kerak (${workTimeRange}).`,
       );
     }
 
     // Use the stored state data
-    const { serviceIds, barberId, date } = state;
-    if (!serviceIds || !barberId || !date) {
+    const { serviceIds, date } = state;
+    if (!serviceIds || !date) {
       return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     }
 
     // Call handleTimeSelection with the entered time
-    await this.handleTimeSelection(ctx, date, timeText, barberId, serviceIds);
+    await this.handleTimeSelection(ctx, date, timeText, state.barberId, serviceIds);
     return true;
   }
 
@@ -993,17 +999,17 @@ Quyidagi bo'limlardan birini tanlang:
     if (!tgId || !ctx.from) return;
 
     const state = this.bookingStates.get(ctx.from.id);
-    if (!state) {
-      // Agar state yo'q bo'lsa, yangi xizmat tanlash sahifasini ochish
+    if (!state || !state.barberId) {
       return this.handleBookService(ctx);
     }
 
-    // Tanlangan xizmatlarni saqlab qolish
+    // Barber va tanlangan xizmatlarni saqlab qolish
+    const barberId = state.barberId;
     const serviceIds = state.serviceIds || [];
 
-    const client = await this.userService.findClientByTgId(tgId);
-    if (!client) {
-      return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
+    const barber = await this.userService.findOne(barberId);
+    if (!barber) {
+      return ctx.reply('Barber topilmadi.');
     }
 
     // Get all services
@@ -1024,15 +1030,27 @@ Quyidagi bo'limlardan birini tanlang:
         .row();
     });
     keyboard
-      .text('⬅️ Ortga qaytish', 'menu_back')
+      .text('⬅️ Ortga qaytish', 'back_to_barbers')
       .text('✅ Davom etish', 'service_continue')
       .row();
 
     // State'ni yangilash
-    this.bookingStates.set(ctx.from.id, { step: 'service', serviceIds });
+    this.bookingStates.set(ctx.from.id, {
+      step: 'service',
+      barberId,
+      serviceIds,
+    });
 
     const selectedCount = serviceIds.length;
+    const workTime = barber.work_start_time && barber.work_end_time
+      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+      : '';
+
     const message = `
+<b>💈 Barber:</b> ${barber.name}${workTime}
+
+━━━━━━━━━━━━━━━━━━
+
 <b>✂️ Xizmatlarni tanlang</b>
 
 <i>(bir nechta tanlash mumkin)</i>
@@ -1061,28 +1079,9 @@ Quyidagi bo'limlardan birini tanlang:
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
-    const state = this.bookingStates.get(ctx.from.id);
-    if (!state || !state.serviceIds) {
-      return this.handleBookService(ctx);
-    }
-
-    const serviceIds = state.serviceIds;
     const client = await this.userService.findClientByTgId(tgId);
     if (!client) {
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
-    }
-
-    // Get selected services
-    const selectedServices: BarberServiceEntity[] = [];
-    for (const serviceId of serviceIds) {
-      const service = await this.barberServiceService.findOne(serviceId);
-      if (service) {
-        selectedServices.push(service);
-      }
-    }
-
-    if (selectedServices.length === 0) {
-      return ctx.reply('Xizmatlar topilmadi.');
     }
 
     // Get working barbers
@@ -1093,53 +1092,31 @@ Quyidagi bo'limlardan birini tanlang:
       );
     }
 
-    // Calculate totals
-    const totalPrice = selectedServices.reduce(
-      (sum, s) => sum + Number(s.price),
-      0,
-    );
-    const totalDuration = selectedServices.reduce(
-      (sum, s) => sum + s.duration,
-      0,
-    );
-
-    // Format services list
-    const servicesList = selectedServices
-      .map((s) => `✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
-      .join('\n');
-
-    // Premium card message
-    const message = `
-<b>🧾 Tanlangan xizmatlar</b>
-
-━━━━━━━━━━━━━━━━━━
-${servicesList}
-━━━━━━━━━━━━━━━━━━
-
-💰 <b>Jami narx:</b> ${totalPrice} so'm
-⏱ <b>Jami vaqt:</b> ${totalDuration} daqiqa
-
-━━━━━━━━━━━━━━━━━━
-
-<b>💈 Barberni tanlang:</b>
-`;
-
-    // Create premium inline keyboard for barbers
+    // Create inline keyboard for barbers
     const keyboard = new InlineKeyboard();
     barbers.forEach((barber) => {
+      const workTime = barber.work_start_time && barber.work_end_time
+        ? ` (${barber.work_start_time} - ${barber.work_end_time})`
+        : '';
+      const usernameDisplay = barber.tg_username ? ` (@${barber.tg_username})` : '';
       keyboard
         .text(
-          `👤 ${barber.name}${barber.tg_username ? ` (@${barber.tg_username})` : ''}`,
-          `barber_${barber.id}_${serviceIds.join(',')}`,
+          `👤 ${barber.name}${usernameDisplay}${workTime}`,
+          `barber_select_${barber.id}`,
         )
         .row();
     });
-    keyboard.text('⬅️ Ortga qaytish', 'back_to_services').row();
+    keyboard.text('⬅️ Ortga qaytish', 'menu_back').row();
 
-    this.bookingStates.set(ctx.from.id, {
-      step: 'barber',
-      serviceIds,
-    });
+    this.bookingStates.set(ctx.from.id, { step: 'barber' });
+
+    const message = `
+<b>💈 Barberni tanlang</b>
+
+Iltimos, xizmat olish uchun barberni tanlang:
+
+━━━━━━━━━━━━━━━━━━
+`;
 
     // Eski xabarni yangi xabar bilan almashtirish
     try {
@@ -1198,9 +1175,13 @@ ${servicesList}
       .map((s) => `✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
       .join('\n');
 
+    const workTime = barber.work_start_time && barber.work_end_time
+      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+      : '';
+
     // Premium card message
     const message = `
-<b>💈 Barber:</b> ${barber.name}
+<b>💈 Barber:</b> ${barber.name}${workTime}
 
 <b>🧾 Tanlangan xizmatlar</b>
 
@@ -1256,7 +1237,7 @@ ${servicesList}
     if (dates.length % 2 !== 0) {
       keyboard.row();
     }
-    keyboard.text('⬅️ Ortga qaytish', 'back_to_barbers').row();
+    keyboard.text('⬅️ Ortga qaytish', 'back_to_services').row();
 
     this.bookingStates.set(ctx.from.id, {
       step: 'date',

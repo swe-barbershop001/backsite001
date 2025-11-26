@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -39,8 +40,9 @@ export class UserController {
   @ApiOperation({ summary: 'Create a new user' })
   @ApiResponse({ status: 201, description: 'User successfully created' })
   @ApiResponse({ status: 400, description: 'Bad request' })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  @ApiResponse({ status: 403, description: 'Forbidden - Only SUPER_ADMIN can create ADMIN users, only ADMIN/SUPER_ADMIN can create BARBER users' })
+  create(@Body() createUserDto: CreateUserDto, @Request() req: any) {
+    return this.userService.create(createUserDto, req.user);
   }
 
   @Get()

@@ -4,6 +4,7 @@ import {
   forwardRef,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -22,7 +23,25 @@ export class UserService {
     private authService: AuthService,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto, currentUser?: { id: number; role: UserRole }): Promise<User> {
+    // ADMIN role yaratishni faqat SUPER_ADMIN qila oladi
+    if (createUserDto.role === UserRole.ADMIN) {
+      if (!currentUser || currentUser.role !== UserRole.SUPER_ADMIN) {
+        throw new ForbiddenException(
+          'ADMIN role\'ga ega foydalanuvchini faqat SUPER_ADMIN yarata oladi',
+        );
+      }
+    }
+
+    // BARBER role yaratishni faqat ADMIN yoki SUPER_ADMIN qila oladi
+    if (createUserDto.role === UserRole.BARBER) {
+      if (!currentUser || (currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.SUPER_ADMIN)) {
+        throw new ForbiddenException(
+          'BARBER role\'ga ega foydalanuvchini faqat ADMIN yoki SUPER_ADMIN yarata oladi',
+        );
+      }
+    }
+
     // Unique tekshiruvlar
     if (createUserDto.phone_number) {
       const existingUserByPhone = await this.userRepository.findOne({
@@ -58,6 +77,7 @@ export class UserService {
     }
 
     // Password'ni hash qilish (agar allaqachon hash qilinmagan bo'lsa)
+    // Bot orqali ro'yxatdan o'tganda password bo'lmaydi
     if (createUserDto.password) {
       // Bcrypt hash'lar $2b$, $2a$ yoki $2y$ bilan boshlanadi va 60 belgidan iborat
       const isAlreadyHashed = /^\$2[aby]\$\d{2}\$/.test(createUserDto.password);
@@ -65,6 +85,16 @@ export class UserService {
         createUserDto.password = await this.authService.hashPassword(
           createUserDto.password,
         );
+      }
+    }
+
+    // Bot orqali ro'yxatdan o'tganda password bo'lmasa, vaqtinchalik password yaratish
+    // Lekin bu faqat tg_id bo'lsa va password bo'lmasa
+    if (!createUserDto.password && createUserDto.tg_id) {
+      // Bot orqali ro'yxatdan o'tgan foydalanuvchilar uchun password kerak emas
+      // Vaqtinchalik unique username yaratish (agar tg_username bo'lmasa)
+      if (!createUserDto.tg_username) {
+        createUserDto.tg_username = `user_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       }
     }
 
@@ -147,6 +177,13 @@ export class UserService {
     if (!tgUsername) return null;
     return await this.userRepository.findOne({
       where: { tg_username: tgUsername },
+    });
+  }
+
+  async findByPhoneNumber(phoneNumber: string): Promise<User | null> {
+    if (!phoneNumber) return null;
+    return await this.userRepository.findOne({
+      where: { phone_number: phoneNumber },
     });
   }
 

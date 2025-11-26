@@ -25,8 +25,8 @@ export class User {
   @Column({ unique: true, nullable: false })
   tg_username: string;
 
-  @Column({ nullable:false })
-  password:string; // Hash qilingan password
+  @Column({ nullable: true })
+  password?: string; // Hash qilingan password (bot orqali ro'yxatdan o'tganda bo'lmaydi)
 
   @Column({
     type: 'enum',
@@ -37,6 +37,12 @@ export class User {
 
   @Column({ default: false, nullable: true })
   working: boolean; // Barber uchun ishlayapti/ishlamayapti
+
+  @Column({ nullable: true })
+  work_start_time?: string; // Barber uchun ish boshlanish vaqti (HH:mm formatida, masalan: "09:00")
+
+  @Column({ nullable: true })
+  work_end_time?: string; // Barber uchun ish tugash vaqti (HH:mm formatida, masalan: "18:00")
 
   @OneToMany(() => Booking, (booking) => booking.client)
   clientBookings: Booking[];

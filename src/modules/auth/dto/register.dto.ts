@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, MinLength, IsEnum } from 'class-validator';
+import { UserRole } from 'src/common/enums/user.enum';
 
 export class RegisterDto {
   @ApiProperty({
@@ -38,4 +39,13 @@ export class RegisterDto {
   @IsNotEmpty()
   @MinLength(4, { message: "Parol kamida 4 belgidan iborat bo'lishi kerak" })
   password: string;
+
+  @ApiProperty({
+    enum: UserRole,
+    description: 'User role - only admin or super_admin allowed',
+    example: UserRole.ADMIN,
+  })
+  @IsEnum(UserRole, { message: 'Role faqat admin yoki super_admin bo\'lishi kerak' })
+  @IsNotEmpty()
+  role: UserRole;
 }

@@ -107,6 +107,8 @@ async function seed() {
         password: hashedPassword,
         role: UserRole.BARBER,
         working: true,
+        work_start_time: '09:00',
+        work_end_time: '18:00',
       },
       {
         name: 'Javohir Javohirov',
@@ -116,6 +118,8 @@ async function seed() {
         password: hashedPassword,
         role: UserRole.BARBER,
         working: true,
+        work_start_time: '10:00',
+        work_end_time: '19:00',
       },
       {
         name: 'Sardor Sardorov',
@@ -125,6 +129,8 @@ async function seed() {
         password: hashedPassword,
         role: UserRole.BARBER,
         working: false,
+        work_start_time: '08:00',
+        work_end_time: '17:00',
       },
       {
         name: 'Dilshod Dilshodov',
@@ -134,6 +140,8 @@ async function seed() {
         password: hashedPassword,
         role: UserRole.BARBER,
         working: true,
+        work_start_time: '09:00',
+        work_end_time: '18:00',
       },
       {
         name: 'Farhod Farhodov',
@@ -143,11 +151,28 @@ async function seed() {
         password: hashedPassword,
         role: UserRole.BARBER,
         working: true,
+        work_start_time: '10:00',
+        work_end_time: '20:00',
       },
     ];
 
     const savedBarbers = await userRepository.save(barbers);
     console.log(`✅ Created ${savedBarbers.length} barbers`);
+
+    // Create Admin
+    console.log('👑 Creating admin...');
+    const admin = {
+      name: 'Admin Adminov',
+      phone_number: '+998903456789',
+      tg_id: '3000000001',
+      tg_username: 'admin_user',
+      password: hashedPassword,
+      role: UserRole.ADMIN,
+      working: false,
+    };
+
+    const savedAdmin = await userRepository.save(admin);
+    console.log(`✅ Created admin: ${savedAdmin.name}`);
 
     // Create Barber Services
     console.log('✂️  Creating barber services...');
@@ -340,9 +365,14 @@ async function seed() {
     console.log('\n📊 Summary:');
     console.log(`   - ${savedClients.length} clients`);
     console.log(`   - ${savedBarbers.length} barbers`);
+    console.log(`   - 1 admin`);
     console.log(`   - ${savedServices.length} services`);
     console.log(`   - ${savedBookings.length} bookings`);
     console.log('\n🔑 Default password for all users: password123');
+    console.log('\n📝 Notes:');
+    console.log('   - Only ADMIN and SUPER_ADMIN can login/register via API');
+    console.log('   - Clients register via Telegram bot (no password required)');
+    console.log('   - Barbers have working hours set (work_start_time - work_end_time)');
 
     await dataSource.destroy();
   } catch (error) {

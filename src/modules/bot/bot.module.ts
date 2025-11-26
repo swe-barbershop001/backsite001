@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BotService } from './bot.service';
 import { UserModule } from '../user/user.module';
 import { BarberServiceModule } from '../barber-service/barber-service.module';
@@ -8,7 +8,7 @@ import { BookingModule } from '../booking/booking.module';
   imports: [
     UserModule,
     BarberServiceModule,
-    BookingModule,
+    forwardRef(() => BookingModule),
   ],
   providers: [BotService],
   exports: [BotService],

@@ -1,45 +1,172 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull } from 'typeorm';
 import { Booking } from './entities/booking.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
-import { CreateMultipleBookingsDto } from './dto/create-multiple-bookings.dto';
 import { BookingStatus } from '../../common/enums/booking-status.enum';
+import { UserService } from '../user/user.service';
+import { UserRole } from '../../common/enums/user.enum';
+import { BotService } from '../bot/bot.service';
+import { BarberServiceService } from '../barber-service/barber-service.service';
+import { InlineKeyboard } from 'grammy';
 
 @Injectable()
 export class BookingService {
   constructor(
     @InjectRepository(Booking)
     private bookingRepository: Repository<Booking>,
+    private userService: UserService,
+    @Inject(forwardRef(() => BotService))
+    private botService: BotService,
+    private barberServiceService: BarberServiceService,
   ) {}
 
-  async create(createBookingDto: CreateBookingDto): Promise<Booking> {
-    // Client booking yaratganda status har doim PENDING bo'ladi
-    const booking = this.bookingRepository.create({
-      ...createBookingDto,
-      status: BookingStatus.PENDING,
-    });
-    return await this.bookingRepository.save(booking);
-  }
+  async create(createBookingDto: CreateBookingDto): Promise<Booking | Booking[]> {
+    const { phone_number, service_ids, ...bookingData } = createBookingDto;
 
-  async createMultiple(
-    createMultipleBookingsDto: CreateMultipleBookingsDto,
-  ): Promise<Booking[]> {
-    const { service_ids, ...bookingData } = createMultipleBookingsDto;
-    const status = createMultipleBookingsDto.status || BookingStatus.APPROVED;
+    // Service IDs tekshiruvi
+    if (!service_ids || service_ids.length === 0) {
+      throw new BadRequestException(
+        'service_ids (array) berilishi kerak va kamida bitta servis bo\'lishi kerak',
+      );
+    }
 
+    // Phone number bo'yicha user topish yoki vaqtinchalik user yaratish
+    let client = await this.userService.findByPhoneNumber(phone_number);
+    if (!client) {
+      // Vaqtinchalik user yaratish
+      const tempUsername = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const tempPassword = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      client = await this.userService.create({
+        phone_number,
+        role: UserRole.CLIENT,
+        tg_username: tempUsername, // Vaqtinchalik username
+        password: tempPassword, // Vaqtinchalik password
+        name: phone_number, // Vaqtinchalik name
+      });
+    }
+
+    const client_id = client.id;
+
+    // Barcha servislar uchun booking yaratish
     const bookings: Booking[] = [];
     for (const serviceId of service_ids) {
       const booking = this.bookingRepository.create({
         ...bookingData,
+        client_id,
         service_id: serviceId,
-        status,
+        status: BookingStatus.PENDING,
       });
       const savedBooking = await this.bookingRepository.save(booking);
       bookings.push(savedBooking);
     }
+    
+    // Admin'larga xabar yuborish
+    if (bookings.length > 0) {
+      await this.notifyAdmins(bookings[0], bookings);
+    }
+    
+    // Agar bitta servis bo'lsa, bitta booking qaytarish, aks holda array
+    return bookings.length === 1 ? bookings[0] : bookings;
+  }
 
-    return bookings;
+  private async notifyAdmins(booking: Booking, allBookings?: Booking[]): Promise<void> {
+    try {
+      // Admin va super_admin'larni topish
+      const admins = await this.userService.findByRole(UserRole.ADMIN);
+      const superAdmins = await this.userService.findByRole(UserRole.SUPER_ADMIN);
+      const allAdmins = [...admins, ...superAdmins];
+
+      if (allAdmins.length === 0) {
+        return;
+      }
+
+      // Booking ma'lumotlarini olish
+      const bookingWithRelations = await this.bookingRepository.findOne({
+        where: { id: booking.id },
+        relations: ['client', 'barber', 'service'],
+      });
+
+      if (!bookingWithRelations) {
+        return;
+      }
+
+      const client = bookingWithRelations.client;
+      const barber = bookingWithRelations.barber;
+      const service = bookingWithRelations.service;
+
+      // Agar bir nechta booking bo'lsa, barcha servislarni olish
+      let services: typeof service[] = [service];
+      if (allBookings && allBookings.length > 1) {
+        const serviceIds = allBookings.map(b => b.service_id);
+        const foundServices = await Promise.all(
+          serviceIds.map(id => this.barberServiceService.findOne(id))
+        );
+        services = foundServices.filter((s): s is typeof service => s !== null);
+      }
+
+      const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
+      const totalDuration = services.reduce((sum, s) => sum + Number(s.duration), 0);
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const adminMessage = `
+<b>🆕 Yangi bron yaratildi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client.name || client.phone_number}
+📞 <b>Telefon:</b> ${client.phone_number || "Yo'q"}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+👨‍🔧 <b>Sartarosh:</b> ${barber.name}
+💈 <b>Xizmatlar:</b>
+${services.map(s => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}
+
+💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+📋 <b>Status:</b> 🟡 PENDING
+
+━━━━━━━━━━━━━━━━━━
+`;
+
+      // Inline keyboard yaratish - tasdiqlash va bekor qilish tugmalari
+      const keyboard = new InlineKeyboard();
+      keyboard
+        .text('✅ Tasdiqlash', `approve_booking_${booking.id}`)
+        .text('❌ Bekor qilish', `reject_booking_${booking.id}`)
+        .row();
+
+      // Barcha admin'larga xabar yuborish
+      for (const admin of allAdmins) {
+        if (admin.tg_id) {
+          try {
+            await this.botService.sendMessage(
+              admin.tg_id, 
+              adminMessage, 
+              { 
+                parse_mode: 'HTML',
+                reply_markup: keyboard,
+              }
+            );
+          } catch (error: any) {
+            // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
+            if (!error?.description?.includes('chat not found')) {
+              console.error(`Failed to send message to admin ${admin.id}:`, error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify admins:', error);
+    }
   }
 
   async findAll(): Promise<Booking[]> {

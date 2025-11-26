@@ -1,5 +1,5 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Bot, Context, session } from 'grammy';
+import { Injectable, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
+import { Bot, Context, session, InlineKeyboard } from 'grammy';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../user/user.service';
 import { BarberServiceService } from '../barber-service/barber-service.service';
@@ -9,6 +9,7 @@ import { BookingHandler } from './handlers/booking.handler';
 import { ClientMenuHandler } from './handlers/client-menu.handler';
 import { BarberMenuHandler } from './handlers/barber-menu.handler';
 import { BotSession } from './types/session.types';
+import { UserRole } from '../../common/enums/user.enum';
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -22,6 +23,7 @@ export class BotService implements OnModuleInit {
     private configService: ConfigService,
     private userService: UserService,
     private barberServiceService: BarberServiceService,
+    @Inject(forwardRef(() => BookingService))
     private bookingService: BookingService,
   ) {
     const token = this.configService.get<string>('BOT_TOKEN');
@@ -150,15 +152,9 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
-    this.bot.callbackQuery(/^barber_(\d+)_(.+)$/, async (ctx) => {
+    this.bot.callbackQuery(/^barber_select_(\d+)$/, async (ctx) => {
       const barberId = parseInt(ctx.match[1]);
-      const serviceIdsStr = ctx.match[2];
-      const serviceIds = serviceIdsStr.split(',').map((id) => parseInt(id));
-      await this.bookingHandler.handleBarberSelection(
-        ctx,
-        barberId,
-        serviceIds,
-      );
+      await this.bookingHandler.handleBarberSelect(ctx, barberId);
       await ctx.answerCallbackQuery();
     });
 
@@ -253,6 +249,109 @@ export class BotService implements OnModuleInit {
     this.bot.callbackQuery('skip_comment', async (ctx) => {
       await this.bookingHandler.handleSkipComment(ctx);
       await ctx.answerCallbackQuery();
+    });
+
+    // Booking tasdiqlash va bekor qilish callback handler'lari
+    this.bot.callbackQuery(/^approve_booking_(\d+)$/, async (ctx) => {
+      const bookingId = parseInt(ctx.match[1]);
+      const tgId = ctx.from?.id.toString();
+      if (!tgId) {
+        await ctx.answerCallbackQuery({ text: 'Xatolik yuz berdi.', show_alert: true });
+        return;
+      }
+
+      // Admin yoki SUPER_ADMIN ekanligini tekshirish
+      const user = await this.userService.findByTgId(tgId);
+      if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+        await ctx.answerCallbackQuery({ text: 'Sizda bu amalni bajarish huquqi yo\'q.', show_alert: true });
+        return;
+      }
+
+      try {
+        const booking = await this.bookingService.approve(bookingId);
+        if (booking) {
+          await ctx.answerCallbackQuery({ text: '✅ Booking tasdiqlandi!' });
+          await ctx.editMessageText(
+            ctx.callbackQuery.message?.text?.replace('🟡 PENDING', '🟢 APPROVED') || ctx.callbackQuery.message?.text || '',
+            { parse_mode: 'HTML' }
+          );
+          
+          // Client'ga xabar yuborish
+          const bookingWithRelations = await this.bookingService.findOne(bookingId);
+          if (bookingWithRelations?.client?.tg_id) {
+            const clientMessage = `
+<b>✅ Booking tasdiqlandi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+📅 <b>Sana:</b> ${bookingWithRelations.date}
+🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
+👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
+
+━━━━━━━━━━━━━━━━━━
+
+Xizmat vaqtida kelishingizni so'raymiz! 🎉
+`;
+            await this.sendMessage(bookingWithRelations.client.tg_id, clientMessage, { parse_mode: 'HTML' });
+          }
+        } else {
+          await ctx.answerCallbackQuery({ text: 'Booking topilmadi.', show_alert: true });
+        }
+      } catch (error) {
+        console.error('Failed to approve booking:', error);
+        await ctx.answerCallbackQuery({ text: 'Xatolik yuz berdi.', show_alert: true });
+      }
+    });
+
+    this.bot.callbackQuery(/^reject_booking_(\d+)$/, async (ctx) => {
+      const bookingId = parseInt(ctx.match[1]);
+      const tgId = ctx.from?.id.toString();
+      if (!tgId) {
+        await ctx.answerCallbackQuery({ text: 'Xatolik yuz berdi.', show_alert: true });
+        return;
+      }
+
+      // Admin yoki SUPER_ADMIN ekanligini tekshirish
+      const user = await this.userService.findByTgId(tgId);
+      if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+        await ctx.answerCallbackQuery({ text: 'Sizda bu amalni bajarish huquqi yo\'q.', show_alert: true });
+        return;
+      }
+
+      try {
+        const booking = await this.bookingService.reject(bookingId);
+        if (booking) {
+          await ctx.answerCallbackQuery({ text: '❌ Booking bekor qilindi.' });
+          await ctx.editMessageText(
+            ctx.callbackQuery.message?.text?.replace('🟡 PENDING', '🔴 REJECTED') || ctx.callbackQuery.message?.text || '',
+            { parse_mode: 'HTML' }
+          );
+          
+          // Client'ga xabar yuborish
+          const bookingWithRelations = await this.bookingService.findOne(bookingId);
+          if (bookingWithRelations?.client?.tg_id) {
+            const clientMessage = `
+<b>❌ Booking bekor qilindi</b>
+
+━━━━━━━━━━━━━━━━━━
+
+📅 <b>Sana:</b> ${bookingWithRelations.date}
+🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
+👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
+
+━━━━━━━━━━━━━━━━━━
+
+Afsuski, sizning bookingingiz bekor qilindi. Iltimos, boshqa vaqtni tanlang yoki admin bilan bog'laning.
+`;
+            await this.sendMessage(bookingWithRelations.client.tg_id, clientMessage, { parse_mode: 'HTML' });
+          }
+        } else {
+          await ctx.answerCallbackQuery({ text: 'Booking topilmadi.', show_alert: true });
+        }
+      } catch (error) {
+        console.error('Failed to reject booking:', error);
+        await ctx.answerCallbackQuery({ text: 'Xatolik yuz berdi.', show_alert: true });
+      }
     });
 
     // Ortga qaytish handler'lari
@@ -355,6 +454,20 @@ export class BotService implements OnModuleInit {
       console.error('[BotService] Error message:', error?.message);
       console.error('[BotService] Error stack:', error?.stack);
       // Don't throw error to prevent app crash, just log it
+    }
+  }
+
+  async sendMessage(chatId: string, message: string, options?: { parse_mode?: 'HTML' | 'Markdown'; reply_markup?: any }): Promise<void> {
+    try {
+      await this.bot.api.sendMessage(chatId, message, options);
+    } catch (error: any) {
+      // "chat not found" xatoligini ignore qilish (test ma'lumotlari yoki bot'ga yozmagan user'lar uchun)
+      if (error?.description?.includes('chat not found') || error?.description?.includes('Bad Request')) {
+        // Silent fail - warning log qilmaymiz, chunki bu test ma'lumotlari uchun normal
+        return;
+      }
+      console.error(`Failed to send message to ${chatId}:`, error);
+      throw error;
     }
   }
 }

@@ -5,7 +5,7 @@ import { getClientMainMenu, getBarberMainMenu } from '../keyboards/main.menu';
 import { BotSession } from '../types/session.types';
 
 export class RegistrationHandler {
-  private registrationStates = new Map<number, 'name' | 'phone' | 'password'>();
+  private registrationStates = new Map<number, 'name' | 'phone'>();
 
   constructor(private userService: UserService) {}
 
@@ -168,41 +168,19 @@ Quyidagi bo'limlardan birini tanlang:
         );
       }
 
-      // Store phone number and ask for password
+      // Store phone number and create user
       const session = (ctx as any).session as BotSession | undefined;
-      if (session) {
-        session.registrationPhone = phoneNumber;
-      }
-      this.registrationStates.set(userId, 'password');
-
-      return ctx.reply(
-        `Rahmat! Telefon raqam: ${phoneNumber}\n\n🔐 Endi parolingizni kiriting:\n\nParol kamida 4 belgidan iborat bo'lishi kerak.`,
-      );
-    }
-
-    if (state === 'password') {
-      // Validate password (minimum 4 characters)
-      const password = text.trim();
-      if (password.length < 4) {
-        return ctx.reply(
-          "❌ Parol kamida 4 belgidan iborat bo'lishi kerak. Iltimos, qayta kiriting:",
-        );
-      }
-
-      // Create client
       const tgId = ctx.from.id.toString();
       const tgUsername = ctx.from.username || undefined;
-      const session = (ctx as any).session as BotSession | undefined;
 
-      if (!session?.registrationName || !session?.registrationPhone) {
+      if (!session?.registrationName) {
         return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
       }
 
       try {
         const user = await this.userService.create({
           name: session.registrationName,
-          phone_number: session.registrationPhone,
-          password: password,
+          phone_number: phoneNumber,
           tg_id: tgId,
           tg_username: tgUsername,
           role: UserRole.CLIENT,
@@ -213,7 +191,6 @@ Quyidagi bo'limlardan birini tanlang:
         if (session) {
           delete session.registrationName;
           delete session.registrationPhone;
-          delete session.registrationPassword;
         }
 
         const menu = getClientMainMenu();
@@ -242,16 +219,42 @@ Quyidagi bo'limlardan birini tanlang:
     const contact = ctx.message?.contact;
     if (!contact || !contact.phone_number) return false;
 
-    // Store phone number and ask for password
+    // Store phone number and create user
     const session = (ctx as any).session as BotSession | undefined;
-    if (session) {
-      session.registrationPhone = contact.phone_number;
-    }
-    this.registrationStates.set(userId, 'password');
+    const tgId = ctx.from.id.toString();
+    const tgUsername = ctx.from.username || undefined;
 
-    return ctx.reply(
-      `Rahmat! Telefon raqam: ${contact.phone_number}\n\n🔐 Endi parolingizni kiriting:\n\nParol kamida 4 belgidan iborat bo'lishi kerak.`,
-    );
+    if (!session?.registrationName) {
+      return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+    }
+
+    try {
+      const user = await this.userService.create({
+        name: session.registrationName,
+        phone_number: contact.phone_number,
+        tg_id: tgId,
+        tg_username: tgUsername,
+        role: UserRole.CLIENT,
+      });
+
+      // Clear registration state
+      this.registrationStates.delete(userId);
+      if (session) {
+        delete session.registrationName;
+        delete session.registrationPhone;
+      }
+
+      const menu = getClientMainMenu();
+      return ctx.reply(
+        `Tabriklaymiz! Ro'yxatdan muvaffaqiyatli o'tdingiz! 🎉\n\nIsm: ${user.name}\nTelefon: ${user.phone_number}\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
+        { reply_markup: menu },
+      );
+    } catch (error) {
+      this.registrationStates.delete(userId);
+      return ctx.reply(
+        "Xatolik yuz berdi. Iltimos, qayta urinib ko'ring yoki /start buyrug'ini yuboring.",
+      );
+    }
   }
 
   isInRegistration(userId: number): boolean {

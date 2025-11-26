@@ -11,14 +11,18 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Register a new user' })
+  @ApiOperation({ summary: 'Register a new admin or super_admin (Admin only)' })
+  @ApiResponse({ status: 201, description: 'Admin successfully registered' })
+  @ApiResponse({ status: 400, description: 'Bad request - Only admin and super_admin can register via API' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login user' })
+  @ApiOperation({ summary: 'Login admin or super_admin (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Admin successfully logged in' })
+  @ApiResponse({ status: 400, description: 'Bad request - Only admin and super_admin can login via API' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }

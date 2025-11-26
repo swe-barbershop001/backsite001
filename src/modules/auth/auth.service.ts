@@ -28,7 +28,15 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const { name, tg_username, phone_number, password } = registerDto;
+    const { name, tg_username, phone_number, password, role } = registerDto;
+    
+    // Faqat admin va super_admin API orqali register qilishi mumkin
+    if (role !== UserRole.ADMIN && role !== UserRole.SUPER_ADMIN) {
+      throw new BadRequestException(
+        'API orqali faqat admin yoki super_admin roli bilan foydalanuvchi yaratish mumkin',
+      );
+    }
+
     const existingUser = await this.userService.findByTgUsername(tg_username);
     if (existingUser) {
       throw new BadRequestException(
@@ -41,6 +49,7 @@ export class AuthService {
       tg_username,
       phone_number,
       password: hashedPassword,
+      role,
     });
     const token = await this.generateToken({ id: user.id, role: user.role });
     return { token, user };
@@ -54,6 +63,14 @@ export class AuthService {
         `Bu tg_username (${tg_username}) bilan foydalanuvchi topilmadi`,
       );
     }
+
+    // Faqat admin va super_admin API orqali login qilishi mumkin
+    if (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+      throw new BadRequestException(
+        'API orqali faqat admin yoki super_admin login qilishi mumkin',
+      );
+    }
+
     if (!user.password) {
       throw new BadRequestException("Foydalanuvchida parol o'rnatilmagan");
     }

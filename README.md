@@ -103,12 +103,26 @@ DB_DATABASE=barbershop_bot
 # Application
 PORT=3000
 NODE_ENV=development
+
+# JWT Configuration
+JWT_TOKEN_SECRET=your_jwt_secret_key_here
+JWT_TOKEN_EXPIRATION=7d
+
+# SUPER_ADMIN Configuration (optional - default values will be used if not set)
+SUPER_ADMIN_USERNAME=super_admin
+SUPER_ADMIN_PASSWORD=super_admin123
+SUPER_ADMIN_NAME=Super Admin
+SUPER_ADMIN_PHONE=+998900000000
 ```
 
 **Qayerdan olish kerak:**
 
 - `BOT_TOKEN`: [@BotFather](https://t.me/botfather) dan oling
 - `ADMIN_TG_ID`: [@userinfobot](https://t.me/userinfobot) dan oling
+
+**SUPER_ADMIN haqida:**
+
+Loyiha ishga tushganda SUPER_ADMIN avtomatik yaratiladi. Agar `.env` faylida SUPER_ADMIN o'zgaruvchilari belgilanmagan bo'lsa, default qiymatlar ishlatiladi. Xavfsizlik uchun production'da parolni o'zgartirishni tavsiya qilamiz.
 
 ## ⚙️ Konfiguratsiya
 

@@ -1,22 +1,28 @@
-import { IsNumber, IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNumber, IsString, IsNotEmpty, IsArray, ArrayMinSize } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
 
 export class CreateBookingDto {
-  @ApiProperty({ description: 'Client ID', example: 1 })
-  @IsNumber()
+  @ApiProperty({ description: 'Client phone number', example: '+998901234567' })
+  @IsString()
   @IsNotEmpty()
-  client_id: number;
+  phone_number: string;
 
   @ApiProperty({ description: 'Barber ID', example: 1 })
   @IsNumber()
   @IsNotEmpty()
   barber_id: number;
 
-  @ApiProperty({ description: 'Service ID', example: 1 })
-  @IsNumber()
+  @ApiProperty({ 
+    description: 'Service IDs array (bitta yoki bir nechta servis)', 
+    example: [1],
+    type: [Number]
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsNumber({}, { each: true })
   @IsNotEmpty()
-  service_id: number;
+  service_ids: number[];
 
   @ApiProperty({ description: 'Booking date (yyyy-mm-dd)', example: '2025-01-25' })
   @IsString()
