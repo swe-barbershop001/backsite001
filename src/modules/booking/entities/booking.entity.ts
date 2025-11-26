@@ -6,8 +6,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Client } from '../../client/entities/client.entity';
-import { Barber } from '../../barber/entities/barber.entity';
+import { User } from '../../user/entities/user.entity';
 import { BarberService } from '../../barber-service/entities/barber-service.entity';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
 
@@ -38,13 +37,16 @@ export class Booking {
   })
   status: BookingStatus;
 
-  @ManyToOne(() => Client, (client) => client.bookings)
-  @JoinColumn({ name: 'client_id' })
-  client: Client;
+  @Column({ nullable: true, type: 'text' })
+  comment?: string; // Client tomonidan yozilgan izoh
 
-  @ManyToOne(() => Barber, (barber) => barber.bookings)
+  @ManyToOne(() => User, (user) => user.clientBookings)
+  @JoinColumn({ name: 'client_id' })
+  client: User;
+
+  @ManyToOne(() => User, (user) => user.barberBookings)
   @JoinColumn({ name: 'barber_id' })
-  barber: Barber;
+  barber: User;
 
   @ManyToOne(() => BarberService)
   @JoinColumn({ name: 'service_id' })

@@ -28,14 +28,6 @@ export class CreateBookingDto {
   @IsNotEmpty()
   time: string; // HH:mm
 
-  @ApiPropertyOptional({ 
-    description: 'Booking status', 
-    enum: BookingStatus,
-    default: BookingStatus.PENDING,
-    example: BookingStatus.PENDING
-  })
-  @IsEnum(BookingStatus)
-  @IsOptional()
-  status?: BookingStatus;
+  // Status client tomonidan yuborilmaydi, har doim PENDING bo'ladi
 }
 

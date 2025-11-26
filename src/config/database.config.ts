@@ -1,5 +1,5 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
+import { ConfigService, ConfigType } from '@nestjs/config';
 
 export const getDatabaseConfig = (
   configService: ConfigService,
@@ -14,4 +14,3 @@ export const getDatabaseConfig = (
   synchronize: configService.get<string>('NODE_ENV') !== 'production',
   logging: configService.get<string>('NODE_ENV') === 'development',
 });
-

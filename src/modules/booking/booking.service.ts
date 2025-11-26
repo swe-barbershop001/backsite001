@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not, IsNull } from 'typeorm';
 import { Booking } from './entities/booking.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateMultipleBookingsDto } from './dto/create-multiple-bookings.dto';
@@ -14,9 +14,10 @@ export class BookingService {
   ) {}
 
   async create(createBookingDto: CreateBookingDto): Promise<Booking> {
+    // Client booking yaratganda status har doim PENDING bo'ladi
     const booking = this.bookingRepository.create({
       ...createBookingDto,
-      status: createBookingDto.status || BookingStatus.PENDING,
+      status: BookingStatus.PENDING,
     });
     return await this.bookingRepository.save(booking);
   }
@@ -70,6 +71,30 @@ export class BookingService {
     });
   }
 
+  async findPendingBookings(): Promise<Booking[]> {
+    return await this.bookingRepository.find({
+      where: { status: BookingStatus.PENDING },
+      relations: ['client', 'barber', 'service'],
+      order: { created_at: 'ASC' },
+    });
+  }
+
+  async findBookingsWithComments(): Promise<Booking[]> {
+    return await this.bookingRepository.find({
+      where: { comment: Not(IsNull()) },
+      relations: ['client', 'barber', 'service'],
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  async approve(id: number): Promise<Booking | null> {
+    return await this.updateStatus(id, BookingStatus.APPROVED);
+  }
+
+  async reject(id: number): Promise<Booking | null> {
+    return await this.updateStatus(id, BookingStatus.REJECTED);
+  }
+
   async checkTimeSlotAvailability(
     barberId: number,
     date: string,
@@ -118,6 +143,11 @@ export class BookingService {
     status: BookingStatus,
   ): Promise<Booking | null> {
     await this.bookingRepository.update(id, { status });
+    return await this.findOne(id);
+  }
+
+  async updateComment(id: number, comment: string): Promise<Booking | null> {
+    await this.bookingRepository.update(id, { comment });
     return await this.findOne(id);
   }
 

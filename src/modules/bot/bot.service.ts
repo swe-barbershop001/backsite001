@@ -1,8 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Bot, Context, session } from 'grammy';
 import { ConfigService } from '@nestjs/config';
-import { ClientService } from '../client/client.service';
-import { BarberService } from '../barber/barber.service';
+import { UserService } from '../user/user.service';
 import { BarberServiceService } from '../barber-service/barber-service.service';
 import { BookingService } from '../booking/booking.service';
 import { RegistrationHandler } from './handlers/registration.handler';
@@ -21,8 +20,7 @@ export class BotService implements OnModuleInit {
 
   constructor(
     private configService: ConfigService,
-    private clientService: ClientService,
-    private barberService: BarberService,
+    private userService: UserService,
     private barberServiceService: BarberServiceService,
     private bookingService: BookingService,
   ) {
@@ -38,20 +36,16 @@ export class BotService implements OnModuleInit {
     this.bot = new Bot(token);
 
     // Initialize handlers
-    this.registrationHandler = new RegistrationHandler(
-      this.clientService,
-      this.barberService,
-    );
+    this.registrationHandler = new RegistrationHandler(this.userService);
     this.bookingHandler = new BookingHandler(
-      this.clientService,
-      this.barberService,
+      this.userService,
       this.barberServiceService,
       this.bookingService,
       this.configService,
     );
-    this.clientMenuHandler = new ClientMenuHandler(this.clientService);
+    this.clientMenuHandler = new ClientMenuHandler(this.userService);
     this.barberMenuHandler = new BarberMenuHandler(
-      this.barberService,
+      this.userService,
       this.barberServiceService,
       this.bookingService,
     );
@@ -85,49 +79,52 @@ export class BotService implements OnModuleInit {
         return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
       }
 
-      // Check if user is a client
-      const client = await this.clientService.findByTgId(tgId);
-      if (client) {
-        const profileMessage = `
+      // Check if user exists
+      const user = await this.userService.findByTgId(tgId);
+      if (user) {
+        const isClient = user.role === 'client';
+        const isBarber = user.role === 'barber';
+
+        const bookingsCount = isClient
+          ? user.clientBookings
+            ? user.clientBookings.length
+            : 0
+          : user.barberBookings
+            ? user.barberBookings.length
+            : 0;
+
+        const profileMessage = isClient
+          ? `
 <b>🧾 Profil ma'lumotlari</b>
 
 ━━━━━━━━━━━━━━━━━━
 
-👤 <b>Ism:</b> ${client.full_name}
-📞 <b>Telefon:</b> ${client.phone_number}
+👤 <b>Ism:</b> ${user.name}
+📞 <b>Telefon:</b> ${user.phone_number || "Yo'q"}
 🆔 <b>Telegram ID:</b> ${tgId}
-💬 <b>Telegram:</b> ${client.tg_username ? `@${client.tg_username}` : "Yo'q"}
-📅 <b>Ro'yxatdan o'tgan:</b> ${client.created_at.toLocaleDateString('uz-UZ')}
+💬 <b>Telegram:</b> ${user.tg_username ? `@${user.tg_username}` : "Yo'q"}
+📅 <b>Ro'yxatdan o'tgan:</b> ${user.created_at.toLocaleDateString('uz-UZ')}
 
 ━━━━━━━━━━━━━━━━━━
 
 <b>📊 Statistika:</b>
-📋 <b>Bronlar soni:</b> ${client.bookings ? client.bookings.length : 0}
-`;
-
-        return ctx.reply(profileMessage, {
-          parse_mode: 'HTML',
-        });
-      }
-
-      // Check if user is a barber
-      const barber = await this.barberService.findByTgId(tgId);
-      if (barber) {
-        const profileMessage = `
+📋 <b>Bronlar soni:</b> ${bookingsCount}
+`
+          : `
 <b>ℹ️ Sizning profilingiz:</b>
 
 ━━━━━━━━━━━━━━━━━━
 
-👤 <b>Ism:</b> ${barber.name}
+👤 <b>Ism:</b> ${user.name}
 🆔 <b>Telegram ID:</b> ${tgId}
-💬 <b>Telegram:</b> ${barber.tg_username ? `@${barber.tg_username}` : "Yo'q"}
-⚡ <b>Holat:</b> ${barber.working ? 'Ishlayapti ✅' : 'Ishlamayapti ❌'}
-📅 <b>Ro'yxatdan o'tgan sana:</b> ${barber.created_at.toLocaleDateString('uz-UZ')}
+💬 <b>Telegram:</b> ${user.tg_username ? `@${user.tg_username}` : "Yo'q"}
+⚡ <b>Holat:</b> ${user.working ? 'Ishlayapti ✅' : 'Ishlamayapti ❌'}
+📅 <b>Ro'yxatdan o'tgan sana:</b> ${user.created_at.toLocaleDateString('uz-UZ')}
 
 ━━━━━━━━━━━━━━━━━━
 
 <b>📊 Statistika:</b>
-📋 <b>Bronlar soni:</b> ${barber.bookings ? barber.bookings.length : 0}
+📋 <b>Bronlar soni:</b> ${bookingsCount}
 `;
 
         return ctx.reply(profileMessage, {
@@ -252,6 +249,12 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
+    // Skip comment callback
+    this.bot.callbackQuery('skip_comment', async (ctx) => {
+      await this.bookingHandler.handleSkipComment(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
     // Ortga qaytish handler'lari
     this.bot.callbackQuery('menu_back', async (ctx) => {
       await this.bookingHandler.handleBackToMenu(ctx);
@@ -298,13 +301,21 @@ export class BotService implements OnModuleInit {
         return;
       }
 
-      // Check if user is in booking flow and entering time
+      // Check if user is in booking flow
       if (this.bookingHandler.isInBookingFlow(userId)) {
-        const handled = await this.bookingHandler.handleTimeInputText(
+        // Check if entering time
+        const timeHandled = await this.bookingHandler.handleTimeInputText(
           ctx,
           ctx.message.text,
         );
-        if (handled) return;
+        if (timeHandled) return;
+
+        // Check if entering comment
+        const commentHandled = await this.bookingHandler.handleCommentText(
+          ctx,
+          ctx.message.text,
+        );
+        if (commentHandled) return;
       }
 
       // Default response - faqat inline keyboard tugmalari ishlatiladi

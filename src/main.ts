@@ -6,16 +6,21 @@ async function bootstrap() {
   console.log('[Main] Starting NestJS application...');
   const app = await NestFactory.create(AppModule);
 
+  // CORS Configuration
+  app.enableCors({
+    origin: true, // Barcha origin'lardan so'rov yuborishga ruxsat beradi
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    credentials: true,
+  });
+
   // Swagger Configuration
   console.log('[Main] Setting up Swagger documentation...');
   const config = new DocumentBuilder()
     .setTitle('Barbershop Bot API')
     .setDescription('Barbershop Bot API Documentation')
     .setVersion('1.0')
-    .addTag('clients', 'Client management endpoints')
-    .addTag('barbers', 'Barber management endpoints')
-    .addTag('barber-services', 'Barber service management endpoints')
-    .addTag('bookings', 'Booking management endpoints')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

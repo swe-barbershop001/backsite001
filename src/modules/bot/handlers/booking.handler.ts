@@ -1,6 +1,6 @@
 import { Context, InlineKeyboard } from 'grammy';
-import { ClientService } from '../../client/client.service';
-import { BarberService } from '../../barber/barber.service';
+import { UserService } from '../../user/user.service';
+import { UserRole } from '../../../common/enums/user.enum';
 import { BarberServiceService } from '../../barber-service/barber-service.service';
 import { BarberService as BarberServiceEntity } from '../../barber-service/entities/barber-service.entity';
 import { BookingService } from '../../booking/booking.service';
@@ -12,16 +12,16 @@ export class BookingHandler {
   private bookingStates = new Map<
     number,
     {
-      step: 'service' | 'barber' | 'date' | 'time' | 'time_input';
+      step: 'service' | 'barber' | 'date' | 'time' | 'time_input' | 'comment';
       serviceIds?: number[];
       barberId?: number;
       date?: string;
+      bookingIds?: number[]; // Yaratilgan booking ID'lari
     }
   >();
 
   constructor(
-    private clientService: ClientService,
-    private barberService: BarberService,
+    private userService: UserService,
     private barberServiceService: BarberServiceService,
     private bookingService: BookingService,
     private configService: ConfigService,
@@ -31,7 +31,7 @@ export class BookingHandler {
     const tgId = ctx.from?.id.toString();
     if (!tgId) return;
 
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) {
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
     }
@@ -161,7 +161,7 @@ export class BookingHandler {
       return ctx.reply('Iltimos, kamida bitta xizmat tanlang.');
     }
 
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) return;
 
     // Get selected services
@@ -178,7 +178,7 @@ export class BookingHandler {
     }
 
     // Get working barbers
-    const barbers = await this.barberService.findWorkingBarbers();
+    const barbers = await this.userService.findWorkingBarbers();
     if (barbers.length === 0) {
       return ctx.reply(
         "Hozircha ishlayotgan barberlar yo'q. Iltimos, keyinroq urinib ko'ring.",
@@ -256,10 +256,10 @@ ${servicesList}
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) return;
 
-    const barber = await this.barberService.findOne(barberId);
+    const barber = await this.userService.findOne(barberId);
     if (!barber) {
       return ctx.reply('Barber topilmadi.');
     }
@@ -386,7 +386,7 @@ ${servicesList}
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) return;
 
     const serviceIds = serviceIdsStr.split(',').map((id) => parseInt(id));
@@ -517,10 +517,10 @@ Quyidagi vaqtlardan birini tanlang:
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) return;
 
-    const barber = await this.barberService.findOne(barberId);
+    const barber = await this.userService.findOne(barberId);
     if (!barber) {
       return ctx.reply('Barber topilmadi.');
     }
@@ -556,7 +556,7 @@ Quyidagi vaqtlardan birini tanlang:
       return ctx.reply('Ushbu vaqt band. Iltimos, boshqa vaqtni tanlang.');
     }
 
-    // Create bookings for each service (automatically approved)
+      // Create bookings for each service
     try {
       const createdBookings: Awaited<
         ReturnType<typeof this.bookingService.create>
@@ -568,12 +568,11 @@ Quyidagi vaqtlardan birini tanlang:
           service_id: service.id,
           date,
           time,
-          status: BookingStatus.APPROVED,
         });
         createdBookings.push(booking);
       }
 
-      // Clear booking state
+      // Clear booking state - comment so'ralmaydi, booking yakunlangandan keyin so'raladi
       this.bookingStates.delete(ctx.from.id);
 
       // Notify admin
@@ -585,7 +584,7 @@ Quyidagi vaqtlardan birini tanlang:
         );
         let adminMessage =
           `🆕 New booking:\n\n` +
-          `Client: ${client.full_name}${client.tg_username ? ` (@${client.tg_username})` : ''}\n` +
+          `Client: ${client.name}${client.tg_username ? ` (@${client.tg_username})` : ''}\n` +
           `Services:\n`;
         selectedServices.forEach((s) => {
           adminMessage += `• ${s.name} (${s.duration} min) - ${s.price} so'm\n`;
@@ -620,7 +619,7 @@ Quyidagi vaqtlardan birini tanlang:
 
 ━━━━━━━━━━━━━━━━━━
 
-👤 <b>Mijoz:</b> ${client.full_name}${client.tg_username ? ` (@${client.tg_username})` : ''}
+👤 <b>Mijoz:</b> ${client.name}${client.tg_username ? ` (@${client.tg_username})` : ''}
 ${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
 💈 <b>Xizmatlar:</b>
 ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}
@@ -656,12 +655,8 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
         year: 'numeric',
       });
 
-      // Status
-      const status = BookingStatus.APPROVED;
-      const statusDisplay =
-        status === BookingStatus.APPROVED
-          ? '🟢 <b>APPROVED</b>'
-          : '🟡 <b>PENDING</b>';
+      // Status (client booking yaratganda har doim PENDING bo'ladi)
+      const statusDisplay = '🟡 <b>PENDING</b>';
 
       // Premium HTML card message
       const message = `
@@ -677,6 +672,12 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
 <b>🕒 Vaqt:</b> ${time}
 
 <b>📌 Status:</b> ${statusDisplay}
+
+━━━━━━━━━━━━━━━━━━
+
+⏳ <b>Admin tasdiqlashini kutmoqdasiz...</b>
+
+Xizmat yakunlangandan so'ng sizdan fikringizni so'rashadi.
 `;
 
       const menu = getClientMainMenu();
@@ -693,7 +694,7 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
     const tgId = ctx.from?.id.toString();
     if (!tgId) return;
 
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) {
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
     }
@@ -713,6 +714,52 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
       }
     }
 
+    // Check for APPROVED bookings without comments
+    const approvedWithoutComment = bookings.find(
+      (b) => b.status === BookingStatus.APPROVED && !b.comment,
+    );
+
+    if (approvedWithoutComment && ctx.from) {
+      // Ask for comment for this booking
+      this.bookingStates.set(ctx.from.id, {
+        step: 'comment',
+        bookingIds: [approvedWithoutComment.id],
+      });
+
+      const serviceName = approvedWithoutComment.service?.name || 'xizmat';
+      const message = `
+<b>✅ Xizmat yakunlandi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+💈 <b>Xizmat:</b> ${serviceName}
+👨‍🔧 <b>Barber:</b> ${approvedWithoutComment.barber?.name || 'Noma\'lum'}
+
+━━━━━━━━━━━━━━━━━━
+
+💬 <b>Xizmat haqida fikringizni yozing:</b>
+
+Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
+`;
+
+      const skipKeyboard = new InlineKeyboard().text(
+        '⏭️ O\'tkazib yuborish',
+        'skip_comment',
+      );
+
+      try {
+        return await ctx.editMessageText(message, {
+          reply_markup: skipKeyboard,
+          parse_mode: 'HTML',
+        });
+      } catch (error) {
+        return ctx.reply(message, {
+          reply_markup: skipKeyboard,
+          parse_mode: 'HTML',
+        });
+      }
+    }
+
     // Format date for display
     const formatDate = (dateStr: string) => {
       const dateObj = new Date(dateStr + 'T00:00:00');
@@ -728,10 +775,16 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
     let message = `🗂 <b>Sizning bookinglaringiz:</b>\n\n`;
     
     bookings.forEach((booking, index) => {
-      const statusDisplay =
-        booking.status === BookingStatus.APPROVED
-          ? '🟢 APPROVED'
-          : '🟡 PENDING';
+      let statusDisplay = '';
+      if (booking.status === BookingStatus.APPROVED) {
+        statusDisplay = '🟢 APPROVED';
+      } else if (booking.status === BookingStatus.REJECTED) {
+        statusDisplay = '🔴 REJECTED';
+      } else if (booking.status === BookingStatus.CANCELLED) {
+        statusDisplay = '⚫ CANCELLED';
+      } else {
+        statusDisplay = '🟡 PENDING';
+      }
       
       const formattedDate = formatDate(booking.date);
       
@@ -748,6 +801,7 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
 🕒 <b>Vaqt:</b> ${booking.time}
 
 📌 <b>Status:</b> ${statusDisplay}
+${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
 
 `;
     });
@@ -789,6 +843,52 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
 
     return ctx.reply(
       "Vaqtni kiriting (HH:mm formatida):\n\nMasalan: 14:30\n\nIltimos, 09:00 - 18:00 oralig'idagi vaqtni kiriting.",
+    );
+  }
+
+  async handleCommentText(ctx: Context, commentText: string) {
+    const userId = ctx.from?.id;
+    if (!userId) return false;
+
+    const state = this.bookingStates.get(userId);
+    if (!state || state.step !== 'comment' || !state.bookingIds) return false;
+
+    // Update all bookings with comment
+    try {
+      for (const bookingId of state.bookingIds) {
+        await this.bookingService.updateComment(bookingId, commentText);
+      }
+
+      // Clear booking state
+      this.bookingStates.delete(userId);
+
+      const menu = getClientMainMenu();
+      return ctx.reply(
+        '✅ Izoh muvaffaqiyatli qo\'shildi!\n\nAsosiy menyuga qaytingiz.',
+        { reply_markup: menu },
+      );
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+      return ctx.reply(
+        "Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
+      );
+    }
+  }
+
+  async handleSkipComment(ctx: Context) {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    const state = this.bookingStates.get(userId);
+    if (!state || state.step !== 'comment') return;
+
+    // Clear booking state
+    this.bookingStates.delete(userId);
+
+    const menu = getClientMainMenu();
+    return ctx.reply(
+      'Asosiy menyuga qaytingiz.',
+      { reply_markup: menu },
     );
   }
 
@@ -839,7 +939,7 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
     this.bookingStates.delete(ctx.from.id);
 
     // Check if user is a barber
-    const barber = await this.barberService.findByTgId(tgId);
+    const barber = await this.userService.findBarberByTgId(tgId);
     if (barber) {
       const menu = getBarberMainMenu();
       const welcomeMessage = `
@@ -869,13 +969,13 @@ Quyidagi bo'limlardan birini tanlang:
     }
 
     // Check if user is a client
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) {
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
     }
 
     const menu = getClientMainMenu();
-    const welcomeMessage = `Xush kelibsiz, ${client.full_name}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`;
+    const welcomeMessage = `Xush kelibsiz, ${client.name}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`;
 
     // Xabarni tahrirlash yoki yangi xabar yuborish
     try {
@@ -901,7 +1001,7 @@ Quyidagi bo'limlardan birini tanlang:
     // Tanlangan xizmatlarni saqlab qolish
     const serviceIds = state.serviceIds || [];
 
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) {
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
     }
@@ -967,7 +1067,7 @@ Quyidagi bo'limlardan birini tanlang:
     }
 
     const serviceIds = state.serviceIds;
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) {
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
     }
@@ -986,7 +1086,7 @@ Quyidagi bo'limlardan birini tanlang:
     }
 
     // Get working barbers
-    const barbers = await this.barberService.findWorkingBarbers();
+    const barbers = await this.userService.findWorkingBarbers();
     if (barbers.length === 0) {
       return ctx.reply(
         "Hozircha ishlayotgan barberlar yo'q. Iltimos, keyinroq urinib ko'ring.",
@@ -1062,10 +1162,10 @@ ${servicesList}
 
     const serviceIds = serviceIdsStr.split(',').map((id) => parseInt(id));
 
-    const client = await this.clientService.findByTgId(tgId);
+    const client = await this.userService.findClientByTgId(tgId);
     if (!client) return;
 
-    const barber = await this.barberService.findOne(barberId);
+    const barber = await this.userService.findOne(barberId);
     if (!barber) {
       return ctx.reply('Barber topilmadi.');
     }
