@@ -147,6 +147,45 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
+    // Asosiy menyu callback handler'lari
+    this.bot.callbackQuery('menu_services', async (ctx) => {
+      await this.bookingHandler.handleBookService(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('menu_bookings', async (ctx) => {
+      await this.bookingHandler.handleMyBookings(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('menu_profile', async (ctx) => {
+      await this.clientMenuHandler.handleMyProfile(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Ortga qaytish handler'lari
+    this.bot.callbackQuery('menu_back', async (ctx) => {
+      await this.bookingHandler.handleBackToMenu(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('back_to_services', async (ctx) => {
+      await this.bookingHandler.handleBackToServices(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('back_to_barbers', async (ctx) => {
+      await this.bookingHandler.handleBackToBarbers(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^back_to_date_(\d+)_(.+)$/, async (ctx) => {
+      const barberId = parseInt(ctx.match[1]);
+      const serviceIdsStr = ctx.match[2];
+      await this.bookingHandler.handleBackToDate(ctx, barberId, serviceIdsStr);
+      await ctx.answerCallbackQuery();
+    });
+
     // Handle contact messages (for phone number sharing)
     this.bot.on('message:contact', async (ctx) => {
       const userId = ctx.from?.id;
@@ -179,41 +218,7 @@ export class BotService implements OnModuleInit {
         if (handled) return;
       }
 
-      const text = ctx.message.text;
-
-      // Client menu handlers
-      if (text === '💈 Book Service') {
-        await this.bookingHandler.handleBookService(ctx);
-        return;
-      }
-
-      if (text === '📋 My Bookings') {
-        await this.bookingHandler.handleMyBookings(ctx);
-        return;
-      }
-
-      if (text === 'ℹ My Profile') {
-        await this.clientMenuHandler.handleMyProfile(ctx);
-        return;
-      }
-
-      // Barber menu handlers
-      if (text === '⏱ Start Shift') {
-        await this.barberMenuHandler.handleStartShift(ctx);
-        return;
-      }
-
-      if (text === '⏹ End Shift') {
-        await this.barberMenuHandler.handleEndShift(ctx);
-        return;
-      }
-
-      if (text === '🛠 My Services') {
-        await this.barberMenuHandler.handleMyServices(ctx);
-        return;
-      }
-
-      // Default response
+      // Default response - faqat inline keyboard tugmalari ishlatiladi
       await ctx.reply(
         "Noto'g'ri buyruq. Iltimos, menyudan tugmalardan birini tanlang.",
       );
