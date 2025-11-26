@@ -15,16 +15,15 @@ export const getClientMainMenu = () => {
 
 /**
  * Sartaroshlar uchun asosiy keyboard
- * (hozircha o'zgartirilmadi, lekin kelajakda inline qilish mumkin)
  */
 export const getBarberMainMenu = () => {
   return new InlineKeyboard()
-    .text('📋 My Bookings')
+    .text('📋 Bronlarim', 'barber_bookings')
     .row()
-    .text('⏱ Start Shift')
-    .text('⏹ End Shift')
+    .text('🕒 Ishni boshlash', 'start_shift')
+    .text('⬛ Ishni tugatish', 'end_shift')
     .row()
-    .text('🛠 My Services')
-    .text('ℹ My Profile');
+    .text('🛠 Xizmatlarim', 'barber_services')
+    .text('👤 Profilim', 'barber_profile');
 };
 

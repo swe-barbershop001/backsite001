@@ -28,14 +28,50 @@ export class RegistrationHandler {
       );
     }
 
-    // Check if user is a barber
-    const barber = await this.barberService.findByTgId(tgId);
+    // Check if user is a barber by tg_id
+    let barber = await this.barberService.findByTgId(tgId);
     if (barber) {
       const menu = getBarberMainMenu();
-      return ctx.reply(
-        `Xush kelibsiz, ${barber.name}! 👋\n\nBarber paneliga xush kelibsiz.`,
-        { reply_markup: menu },
-      );
+      const message = `
+👋 <b>Xush kelibsiz, ${barber.name}!</b>
+
+💈 <i>Barber paneliga xush kelibsiz.</i>
+
+Quyidagi bo'limlardan birini tanlang:
+
+━━━━━━━━━━━━━━━━━━
+
+`;
+      return ctx.reply(message, {
+        reply_markup: menu,
+        parse_mode: 'HTML',
+      });
+    }
+
+    // Check if user is a barber by tg_username (if tg_id is missing)
+    const tgUsername = ctx.from?.username;
+    if (tgUsername) {
+      barber = await this.barberService.findByTgUsername(tgUsername);
+      if (barber && !barber.tg_id) {
+        // Update barber's tg_id
+        await this.barberService.updateTgId(barber.id, tgId);
+        barber.tg_id = tgId;
+        const menu = getBarberMainMenu();
+        const message = `
+👋 <b>Xush kelibsiz, ${barber.name}!</b>
+
+💈 <i>Barber paneliga xush kelibsiz.</i>
+
+Quyidagi bo'limlardan birini tanlang:
+
+━━━━━━━━━━━━━━━━━━
+
+`;
+        return ctx.reply(message, {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        });
+      }
     }
 
     // New user - start registration

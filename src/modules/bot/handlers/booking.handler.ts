@@ -6,7 +6,7 @@ import { BarberService as BarberServiceEntity } from '../../barber-service/entit
 import { BookingService } from '../../booking/booking.service';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
 import { ConfigService } from '@nestjs/config';
-import { getClientMainMenu } from '../keyboards/main.menu';
+import { getClientMainMenu, getBarberMainMenu } from '../keyboards/main.menu';
 
 export class BookingHandler {
   private bookingStates = new Map<
@@ -599,6 +599,49 @@ Quyidagi vaqtlardan birini tanlang:
         await ctx.api.sendMessage(adminTgId, adminMessage);
       }
 
+      // Notify barber if tg_id exists
+      if (barber.tg_id) {
+        const totalPrice = selectedServices.reduce(
+          (sum, s) => sum + Number(s.price),
+          0,
+        );
+        
+        // Format date for display
+        const dateObj = new Date(date + 'T00:00:00');
+        const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+
+        const barberMessage = `
+<b>🆕 Yangi bron yaratildi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client.full_name}${client.tg_username ? ` (@${client.tg_username})` : ''}
+${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
+💈 <b>Xizmatlar:</b>
+${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}
+
+💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${time}
+
+━━━━━━━━━━━━━━━━━━
+`;
+
+        try {
+          await ctx.api.sendMessage(barber.tg_id, barberMessage, {
+            parse_mode: 'HTML',
+          });
+        } catch (error) {
+          // Ignore errors if barber's tg_id is invalid
+          console.error('Failed to send message to barber:', error);
+        }
+      }
+
       const totalPrice = selectedServices.reduce(
         (sum, s) => sum + Number(s.price),
         0,
@@ -795,6 +838,37 @@ ${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString(
     // Booking state'ni tozalash
     this.bookingStates.delete(ctx.from.id);
 
+    // Check if user is a barber
+    const barber = await this.barberService.findByTgId(tgId);
+    if (barber) {
+      const menu = getBarberMainMenu();
+      const welcomeMessage = `
+👋 <b>Xush kelibsiz, ${barber.name}!</b>
+
+💈 <i>Barber paneliga xush kelibsiz.</i>
+
+Quyidagi bo'limlardan birini tanlang:
+
+━━━━━━━━━━━━━━━━━━
+
+`;
+
+      // Xabarni tahrirlash yoki yangi xabar yuborish
+      try {
+        return await ctx.editMessageText(welcomeMessage, {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        });
+      } catch (error) {
+        // Agar xabar tahrirlab bo'lmasa, yangi xabar yuborish
+        return ctx.reply(welcomeMessage, {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        });
+      }
+    }
+
+    // Check if user is a client
     const client = await this.clientService.findByTgId(tgId);
     if (!client) {
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");

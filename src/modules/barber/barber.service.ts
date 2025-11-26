@@ -18,6 +18,22 @@ export class BarberService {
     });
   }
 
+  async findByTgUsername(tgUsername: string): Promise<Barber | null> {
+    if (!tgUsername) return null;
+    return await this.barberRepository.findOne({
+      where: { tg_username: tgUsername },
+    });
+  }
+
+  async updateTgId(id: number, tgId: string): Promise<Barber> {
+    await this.barberRepository.update(id, { tg_id: tgId });
+    const barber = await this.findOne(id);
+    if (!barber) {
+      throw new Error(`Barber with ID ${id} not found`);
+    }
+    return barber;
+  }
+
   async findWorkingBarbers(): Promise<Barber[]> {
     return await this.barberRepository.find({
       where: { working: true },

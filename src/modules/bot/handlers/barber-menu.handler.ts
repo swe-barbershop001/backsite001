@@ -1,4 +1,4 @@
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import { BarberService } from '../../barber/barber.service';
 import { BarberServiceService } from '../../barber-service/barber-service.service';
 import { BookingService } from '../../booking/booking.service';
@@ -28,7 +28,7 @@ export class BarberMenuHandler {
     const menu = getBarberMainMenu();
 
     return ctx.reply(
-      '✅ Shift boshlandi! Endi sizga bookinglar qabul qilinadi.',
+      '✅ Ish boshlandi! Endi sizga bookinglar qabul qilinadi.',
       { reply_markup: menu },
     );
   }
@@ -50,7 +50,7 @@ export class BarberMenuHandler {
     const menu = getBarberMainMenu();
 
     return ctx.reply(
-      '⏹ Shift yakunlandi. Yana ishga qaytganda "Start Shift" tugmasini bosing.',
+      '⏹ Ish yakunlandi. Yana ishga qaytganda "Ishni boshlash" tugmasini bosing.',
       { reply_markup: menu },
     );
   }
@@ -100,14 +100,54 @@ export class BarberMenuHandler {
       return ctx.reply('Hozircha mavjud xizmatlar yo\'q.');
     }
 
-    let message = '🛠 Mavjud xizmatlar:\n\n';
-    services.forEach((service, index) => {
-      message += `${index + 1}. ${service.name}\n` +
-        `   Narx: ${service.price} so'm\n` +
-        `   Davomiyligi: ${service.duration} daqiqa\n\n`;
-    });
+    // Emoji mapping fallback
+    const getServiceEmoji = (serviceName: string): string => {
+      const name = serviceName.toLowerCase();
+      if (name.includes('soch olish')) {
+        return '✂️';
+      }
+      if (name.includes('soqol olish')) {
+        return '🧔';
+      }
+      if (name.includes('soch bo\'yash') || name.includes('soch boyash')) {
+        return '🎨';
+      }
+      return '💈'; // Default emoji
+    };
 
-    return ctx.reply(message);
+    const servicesMessage = `
+🛠 <b>Mavjud xizmatlar</b>
+
+━━━━━━━━━━━━━━━━━━
+
+${services.map((s, i) => `
+<b>${i+1}) ${getServiceEmoji(s.name)} ${s.name}</b>
+
+💵 <i>Narx:</i> ${s.price} so'm
+
+⏱ <i>Davomiyligi:</i> ${s.duration} daqiqa  
+
+`).join("\n")}
+
+━━━━━━━━━━━━━━━━━━
+
+`;
+
+    const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'menu_back');
+
+    // Eski xabarni yangi xabar bilan almashtirish
+    try {
+      return await ctx.editMessageText(servicesMessage, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      // Agar xabarni tahrirlab bo'lmasa, yangi xabar yuborish
+      return ctx.reply(servicesMessage, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
   }
 
   async handleMyProfile(ctx: Context) {
@@ -119,15 +159,32 @@ export class BarberMenuHandler {
       return ctx.reply('Siz barber emassiz.');
     }
 
-    const menu = getBarberMainMenu();
-    return ctx.reply(
-      `ℹ️ Sizning profilingiz:\n\n` +
-        `Ism: ${barber.name}\n` +
-        `Telegram: ${barber.tg_username ? `@${barber.tg_username}` : 'Yo\'q'}\n` +
-        `Holat: ${barber.working ? 'Ishlayapti ✅' : 'Ishlamayapti ❌'}\n` +
-        `Ro'yxatdan o'tgan sana: ${barber.created_at.toLocaleDateString('uz-UZ')}`,
-      { reply_markup: menu },
-    );
+    const profileMessage = `
+<b>ℹ️ Sizning profilingiz:</b>
+
+──────────────
+👤 <b>Ism:</b> ${barber.name}
+💬 <b>Telegram:</b> ${barber.tg_username ? `@${barber.tg_username}` : 'Yo\'q'}
+⚡ <b>Holat:</b> ${barber.working ? 'Ishlayapti ✅' : 'Ishlamayapti ❌'}
+📅 <b>Ro'yxatdan o'tgan sana:</b> ${barber.created_at.toLocaleDateString('uz-UZ')}
+──────────────
+`;
+
+    const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'menu_back');
+
+    // Eski xabarni yangi xabar bilan almashtirish
+    try {
+      return await ctx.editMessageText(profileMessage, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      // Agar xabarni tahrirlab bo'lmasa, yangi xabar yuborish
+      return ctx.reply(profileMessage, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
   }
 }
 

@@ -78,6 +78,69 @@ export class BotService implements OnModuleInit {
       await this.registrationHandler.handleStart(ctx);
     });
 
+    // Me command - show user profile
+    this.bot.command('me', async (ctx) => {
+      const tgId = ctx.from?.id.toString();
+      if (!tgId) {
+        return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+      }
+
+      // Check if user is a client
+      const client = await this.clientService.findByTgId(tgId);
+      if (client) {
+        const profileMessage = `
+<b>🧾 Profil ma'lumotlari</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Ism:</b> ${client.full_name}
+📞 <b>Telefon:</b> ${client.phone_number}
+🆔 <b>Telegram ID:</b> ${tgId}
+💬 <b>Telegram:</b> ${client.tg_username ? `@${client.tg_username}` : "Yo'q"}
+📅 <b>Ro'yxatdan o'tgan:</b> ${client.created_at.toLocaleDateString('uz-UZ')}
+
+━━━━━━━━━━━━━━━━━━
+
+<b>📊 Statistika:</b>
+📋 <b>Bronlar soni:</b> ${client.bookings ? client.bookings.length : 0}
+`;
+
+        return ctx.reply(profileMessage, {
+          parse_mode: 'HTML',
+        });
+      }
+
+      // Check if user is a barber
+      const barber = await this.barberService.findByTgId(tgId);
+      if (barber) {
+        const profileMessage = `
+<b>ℹ️ Sizning profilingiz:</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Ism:</b> ${barber.name}
+🆔 <b>Telegram ID:</b> ${tgId}
+💬 <b>Telegram:</b> ${barber.tg_username ? `@${barber.tg_username}` : "Yo'q"}
+⚡ <b>Holat:</b> ${barber.working ? 'Ishlayapti ✅' : 'Ishlamayapti ❌'}
+📅 <b>Ro'yxatdan o'tgan sana:</b> ${barber.created_at.toLocaleDateString('uz-UZ')}
+
+━━━━━━━━━━━━━━━━━━
+
+<b>📊 Statistika:</b>
+📋 <b>Bronlar soni:</b> ${barber.bookings ? barber.bookings.length : 0}
+`;
+
+        return ctx.reply(profileMessage, {
+          parse_mode: 'HTML',
+        });
+      }
+
+      // User not found
+      return ctx.reply(
+        "Siz ro'yxatdan o'tmagansiz. Iltimos, /start buyrug'ini yuboring.",
+      );
+    });
+
     // Handle inline callbacks
     this.bot.callbackQuery(/^service_toggle_(\d+)$/, async (ctx) => {
       const serviceId = parseInt(ctx.match[1]);
@@ -160,6 +223,32 @@ export class BotService implements OnModuleInit {
 
     this.bot.callbackQuery('menu_profile', async (ctx) => {
       await this.clientMenuHandler.handleMyProfile(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Barber menyu callback handler'lari
+    this.bot.callbackQuery('barber_bookings', async (ctx) => {
+      await this.barberMenuHandler.handleMyBookings(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('start_shift', async (ctx) => {
+      await this.barberMenuHandler.handleStartShift(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('end_shift', async (ctx) => {
+      await this.barberMenuHandler.handleEndShift(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_services', async (ctx) => {
+      await this.barberMenuHandler.handleMyServices(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_profile', async (ctx) => {
+      await this.barberMenuHandler.handleMyProfile(ctx);
       await ctx.answerCallbackQuery();
     });
 
