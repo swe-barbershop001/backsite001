@@ -27,3 +27,11 @@ export const getBarberMainMenu = () => {
     .text('👤 Profilim', 'barber_profile');
 };
 
+/**
+ * Admin va Super Admin uchun asosiy keyboard
+ */
+export const getAdminMainMenu = () => {
+  return new InlineKeyboard()
+    .text('👤 Profil', 'admin_profile');
+};
+

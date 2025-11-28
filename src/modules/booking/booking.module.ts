@@ -1,8 +1,11 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { Booking } from './entities/booking.entity';
 import { BookingService } from './booking.service';
 import { BookingController } from './booking.controller';
+import { BookingGateway } from './gateways/booking.gateway';
+import { BookingNotificationService } from './booking-notification.service';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { BotModule } from '../bot/bot.module';
@@ -10,6 +13,7 @@ import { BarberServiceModule } from '../barber-service/barber-service.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     TypeOrmModule.forFeature([Booking]),
     AuthModule,
     UserModule,
@@ -17,7 +21,7 @@ import { BarberServiceModule } from '../barber-service/barber-service.module';
     BarberServiceModule,
   ],
   controllers: [BookingController],
-  providers: [BookingService],
+  providers: [BookingService, BookingGateway, BookingNotificationService],
   exports: [BookingService],
 })
 export class BookingModule {}

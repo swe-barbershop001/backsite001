@@ -42,9 +42,7 @@ export class BookingController {
   }
 
   @Post()
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create booking(s) - single or multiple services in one request' })
+  @ApiOperation({ summary: 'Create booking(s) - single or multiple services in one request (Public)' })
   @ApiResponse({ status: 201, description: 'Booking(s) successfully created' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   create(@Body() createBookingDto: CreateBookingDto) {

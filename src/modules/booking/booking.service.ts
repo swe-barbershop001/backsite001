@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull } from 'typeorm';
 import { Booking } from './entities/booking.entity';
@@ -9,6 +14,7 @@ import { UserRole } from '../../common/enums/user.enum';
 import { BotService } from '../bot/bot.service';
 import { BarberServiceService } from '../barber-service/barber-service.service';
 import { InlineKeyboard } from 'grammy';
+import { BookingGateway } from './gateways/booking.gateway';
 
 @Injectable()
 export class BookingService {
@@ -19,30 +25,33 @@ export class BookingService {
     @Inject(forwardRef(() => BotService))
     private botService: BotService,
     private barberServiceService: BarberServiceService,
+    private bookingGateway: BookingGateway,
   ) {}
 
-  async create(createBookingDto: CreateBookingDto): Promise<Booking | Booking[]> {
-    const { phone_number, service_ids, ...bookingData } = createBookingDto;
+  async create(
+    createBookingDto: CreateBookingDto,
+  ): Promise<Booking | Booking[]> {
+    const { phone_number, service_ids, client_name, ...bookingData } =
+      createBookingDto;
 
     // Service IDs tekshiruvi
     if (!service_ids || service_ids.length === 0) {
       throw new BadRequestException(
-        'service_ids (array) berilishi kerak va kamida bitta servis bo\'lishi kerak',
+        "service_ids (array) berilishi kerak va kamida bitta servis bo'lishi kerak",
       );
     }
 
-    // Phone number bo'yicha user topish yoki vaqtinchalik user yaratish
+    // Phone number bo'yicha user topish
     let client = await this.userService.findByPhoneNumber(phone_number);
-    if (!client) {
-      // Vaqtinchalik user yaratish
-      const tempUsername = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const tempPassword = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    if (client) {
+      throw new BadRequestException(
+        `Bu telefon raqam (${phone_number}) bilan foydalanuvchi allaqachon mavjud`,
+      );
+    } else {
       client = await this.userService.create({
         phone_number,
         role: UserRole.CLIENT,
-        tg_username: tempUsername, // Vaqtinchalik username
-        password: tempPassword, // Vaqtinchalik password
-        name: phone_number, // Vaqtinchalik name
+        name: client_name,
       });
     }
 
@@ -60,21 +69,26 @@ export class BookingService {
       const savedBooking = await this.bookingRepository.save(booking);
       bookings.push(savedBooking);
     }
-    
+
     // Admin'larga xabar yuborish
     if (bookings.length > 0) {
       await this.notifyAdmins(bookings[0], bookings);
     }
-    
+
     // Agar bitta servis bo'lsa, bitta booking qaytarish, aks holda array
     return bookings.length === 1 ? bookings[0] : bookings;
   }
 
-  private async notifyAdmins(booking: Booking, allBookings?: Booking[]): Promise<void> {
+  private async notifyAdmins(
+    booking: Booking,
+    allBookings?: Booking[],
+  ): Promise<void> {
     try {
       // Admin va super_admin'larni topish
       const admins = await this.userService.findByRole(UserRole.ADMIN);
-      const superAdmins = await this.userService.findByRole(UserRole.SUPER_ADMIN);
+      const superAdmins = await this.userService.findByRole(
+        UserRole.SUPER_ADMIN,
+      );
       const allAdmins = [...admins, ...superAdmins];
 
       if (allAdmins.length === 0) {
@@ -96,17 +110,20 @@ export class BookingService {
       const service = bookingWithRelations.service;
 
       // Agar bir nechta booking bo'lsa, barcha servislarni olish
-      let services: typeof service[] = [service];
+      let services: (typeof service)[] = [service];
       if (allBookings && allBookings.length > 1) {
-        const serviceIds = allBookings.map(b => b.service_id);
+        const serviceIds = allBookings.map((b) => b.service_id);
         const foundServices = await Promise.all(
-          serviceIds.map(id => this.barberServiceService.findOne(id))
+          serviceIds.map((id) => this.barberServiceService.findOne(id)),
         );
         services = foundServices.filter((s): s is typeof service => s !== null);
       }
 
       const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
-      const totalDuration = services.reduce((sum, s) => sum + Number(s.duration), 0);
+      const totalDuration = services.reduce(
+        (sum, s) => sum + Number(s.duration),
+        0,
+      );
 
       // Format date for display
       const dateObj = new Date(booking.date + 'T00:00:00');
@@ -127,7 +144,7 @@ export class BookingService {
 ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
 👨‍🔧 <b>Sartarosh:</b> ${barber.name}
 💈 <b>Xizmatlar:</b>
-${services.map(s => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}
+${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}
 
 💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
 📅 <b>Sana:</b> ${formattedDate}
@@ -144,25 +161,81 @@ ${services.map(s => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm 
         .text('❌ Bekor qilish', `reject_booking_${booking.id}`)
         .row();
 
-      // Barcha admin'larga xabar yuborish
+      // Barcha admin'larga Telegram orqali xabar yuborish
       for (const admin of allAdmins) {
         if (admin.tg_id) {
           try {
-            await this.botService.sendMessage(
-              admin.tg_id, 
-              adminMessage, 
-              { 
-                parse_mode: 'HTML',
-                reply_markup: keyboard,
-              }
-            );
+            await this.botService.sendMessage(admin.tg_id, adminMessage, {
+              parse_mode: 'HTML',
+              reply_markup: keyboard,
+            });
           } catch (error: any) {
             // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
             if (!error?.description?.includes('chat not found')) {
-              console.error(`Failed to send message to admin ${admin.id}:`, error);
+              console.error(
+                `Failed to send message to admin ${admin.id}:`,
+                error,
+              );
             }
           }
         }
+      }
+
+      // WebSocket orqali real-time xabar yuborish
+      try {
+        // Barcha booking'larni to'liq ma'lumotlar bilan olish
+        const bookingsWithRelations = await Promise.all(
+          (allBookings || [booking]).map(async (b) => {
+            const fullBooking = await this.bookingRepository.findOne({
+              where: { id: b.id },
+              relations: ['client', 'barber', 'service'],
+            });
+            return fullBooking;
+          }),
+        );
+
+        // Null bo'lmagan booking'larni filtrlash
+        const validBookings = bookingsWithRelations.filter(
+          (b): b is Booking => b !== null && b !== undefined,
+        );
+
+        const bookingData = {
+          bookings: validBookings.map((b) => ({
+            id: b.id,
+            client: {
+              id: b.client.id,
+              name: b.client.name,
+              phone_number: b.client.phone_number,
+              tg_username: b.client.tg_username,
+            },
+            barber: {
+              id: b.barber.id,
+              name: b.barber.name,
+              phone_number: b.barber.phone_number,
+            },
+            service: {
+              id: b.service.id,
+              name: b.service.name,
+              price: Number(b.service.price),
+              duration: Number(b.service.duration),
+            },
+            date: b.date,
+            time: b.time,
+            status: b.status,
+            comment: b.comment,
+            created_at: b.created_at,
+          })),
+          summary: {
+            totalPrice,
+            totalDuration,
+            formattedDate,
+            bookingCount: validBookings.length,
+          },
+        };
+
+        this.bookingGateway.notifyNewBooking(bookingData);
+      } catch (error) {
+        console.error('Failed to send WebSocket notification:', error);
       }
     } catch (error) {
       console.error('Failed to notify admins:', error);
@@ -220,6 +293,10 @@ ${services.map(s => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm 
 
   async reject(id: number): Promise<Booking | null> {
     return await this.updateStatus(id, BookingStatus.REJECTED);
+  }
+
+  async complete(id: number): Promise<Booking | null> {
+    return await this.updateStatus(id, BookingStatus.COMPLETED);
   }
 
   async checkTimeSlotAvailability(

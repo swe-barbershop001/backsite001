@@ -92,10 +92,6 @@ export class UserService {
     // Lekin bu faqat tg_id bo'lsa va password bo'lmasa
     if (!createUserDto.password && createUserDto.tg_id) {
       // Bot orqali ro'yxatdan o'tgan foydalanuvchilar uchun password kerak emas
-      // Vaqtinchalik unique username yaratish (agar tg_username bo'lmasa)
-      if (!createUserDto.tg_username) {
-        createUserDto.tg_username = `user_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      }
     }
 
     const user = this.userRepository.create(createUserDto);

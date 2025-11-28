@@ -6,7 +6,7 @@ import { BarberService as BarberServiceEntity } from '../../barber-service/entit
 import { BookingService } from '../../booking/booking.service';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
 import { ConfigService } from '@nestjs/config';
-import { getClientMainMenu, getBarberMainMenu } from '../keyboards/main.menu';
+import { getClientMainMenu, getBarberMainMenu, getAdminMainMenu } from '../keyboards/main.menu';
 
 export class BookingHandler {
   private bookingStates = new Map<
@@ -943,6 +943,46 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
 
     // Booking state'ni tozalash
     this.bookingStates.delete(ctx.from.id);
+
+    // Check if user is admin or super admin
+    const user = await this.userService.findByTgId(tgId);
+    if (user && (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN)) {
+      const menu = getAdminMainMenu();
+      const roleName = user.role === UserRole.ADMIN ? 'Administrator (Admin)' : 'Super Administrator';
+      const welcomeMessage = `
+👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
+
+✅ <b>Sizning rolingiz: ${roleName}</b>
+
+━━━━━━━━━━━━━━━━━━
+
+📋 <b>Vazifangiz:</b>
+
+Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifangiz:
+
+✅ <b>Bronni tasdiqlash</b> - Mijozga tasdiqlash xabari yuboriladi
+❌ <b>Bronni bekor qilish</b> - Mijozga rad etish xabari yuboriladi
+
+━━━━━━━━━━━━━━━━━━
+
+Quyidagi bo'limlardan birini tanlang:
+
+`;
+
+      // Xabarni tahrirlash yoki yangi xabar yuborish
+      try {
+        return await ctx.editMessageText(welcomeMessage, {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        });
+      } catch (error) {
+        // Agar xabar tahrirlab bo'lmasa, yangi xabar yuborish
+        return ctx.reply(welcomeMessage, {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        });
+      }
+    }
 
     // Check if user is a barber
     const barber = await this.userService.findBarberByTgId(tgId);

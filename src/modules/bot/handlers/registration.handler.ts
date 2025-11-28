@@ -1,7 +1,11 @@
 import { Context, Keyboard } from 'grammy';
 import { UserService } from '../../user/user.service';
 import { UserRole } from '../../../common/enums/user.enum';
-import { getClientMainMenu, getBarberMainMenu } from '../keyboards/main.menu';
+import {
+  getClientMainMenu,
+  getBarberMainMenu,
+  getAdminMainMenu,
+} from '../keyboards/main.menu';
 import { BotSession } from '../types/session.types';
 
 export class RegistrationHandler {
@@ -15,7 +19,102 @@ export class RegistrationHandler {
       return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     }
 
-    // Check if user exists
+    // Avval tg_username orqali qidirish
+    const tgUsername = ctx.from?.username;
+    if (tgUsername) {
+      let user = await this.userService.findByTgUsername(tgUsername);
+
+      // Agar foydalanuvchi topilsa, tg_id ni yangilash
+      if (user) {
+        const updateData: any = { tg_id: tgId };
+
+        // Ism yangilash (agar bo'sh bo'lsa)
+        if (!user.name && ctx.from) {
+          const fullName =
+            ctx.from.first_name +
+            (ctx.from.last_name ? ` ${ctx.from.last_name}` : '');
+          updateData.name = fullName;
+        }
+
+        // tg_id ni yangilash
+        user = await this.userService.update(user.id, updateData);
+
+        // Rol bo'yicha xabar va menyu ko'rsatish
+        const roleMessages = {
+          [UserRole.CLIENT]: {
+            message: `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\n✅ Sizning rolingiz: <b>Mijoz (Client)</b>\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
+            menu: getClientMainMenu(),
+            parseMode: undefined,
+          },
+          [UserRole.BARBER]: {
+            message: `👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>\n\n✅ Sizning rolingiz: <b>Sartarosh (Barber)</b>\n\n💈 <i>Barber paneliga xush kelibsiz.</i>\n\nQuyidagi bo'limlardan birini tanlang:\n\n━━━━━━━━━━━━━━━━━━\n\n`,
+            menu: getBarberMainMenu(),
+            parseMode: 'HTML',
+          },
+          [UserRole.ADMIN]: {
+            message: `👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
+
+✅ <b>Sizning rolingiz: Administrator (Admin)</b>
+
+━━━━━━━━━━━━━━━━━━
+
+📋 <b>Vazifangiz:</b>
+
+Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifangiz:
+
+✅ <b>Bronni tasdiqlash</b> - Mijozga tasdiqlash xabari yuboriladi
+❌ <b>Bronni bekor qilish</b> - Mijozga rad etish xabari yuboriladi
+✅ <b>Bronni yakunlash</b> - Xizmat bajarilgandan keyin bronni yakunlash
+
+━━━━━━━━━━━━━━━━━━
+
+Quyidagi bo'limlardan birini tanlang:
+
+`,
+            menu: getAdminMainMenu(),
+            parseMode: 'HTML',
+          },
+          [UserRole.SUPER_ADMIN]: {
+            message: `👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
+
+✅ <b>Sizning rolingiz: Super Administrator</b>
+
+━━━━━━━━━━━━━━━━━━
+
+📋 <b>Vazifangiz:</b>
+
+Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifangiz:
+
+✅ <b>Bronni tasdiqlash</b> - Mijozga tasdiqlash xabari yuboriladi
+❌ <b>Bronni bekor qilish</b> - Mijozga rad etish xabari yuboriladi
+✅ <b>Bronni yakunlash</b> - Xizmat bajarilgandan keyin bronni yakunlash
+
+━━━━━━━━━━━━━━━━━━
+
+Quyidagi bo'limlardan birini tanlang:
+
+`,
+            menu: getAdminMainMenu(),
+            parseMode: 'HTML',
+          },
+        };
+
+        const roleConfig =
+          roleMessages[user.role] || roleMessages[UserRole.CLIENT];
+
+        const replyOptions: any = {
+          reply_markup: roleConfig.menu,
+        };
+
+        if (roleConfig.parseMode) {
+          replyOptions.parse_mode = roleConfig.parseMode;
+        }
+
+        return ctx.reply(roleConfig.message, replyOptions);
+      }
+    }
+
+    // Agar tg_username bo'yicha topilmasa, tg_id orqali qidirish
     let user = await this.userService.findByTgId(tgId);
     if (user) {
       // Update name if it's null or missing
@@ -29,13 +128,15 @@ export class RegistrationHandler {
       if (user.role === UserRole.CLIENT) {
         const menu = getClientMainMenu();
         return ctx.reply(
-          `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
-          { reply_markup: menu },
+          `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\n✅ Sizning rolingiz: <b>Mijoz (Client)</b>\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
+          { reply_markup: menu, parse_mode: 'HTML' },
         );
       } else if (user.role === UserRole.BARBER) {
         const menu = getBarberMainMenu();
         const message = `
 👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
+
+✅ Sizning rolingiz: <b>Sartarosh (Barber)</b>
 
 💈 <i>Barber paneliga xush kelibsiz.</i>
 
@@ -48,60 +149,39 @@ Quyidagi bo'limlardan birini tanlang:
           reply_markup: menu,
           parse_mode: 'HTML',
         });
-      }
-    }
-
-    // Check if user is a client or barber by tg_username (if tg_id is missing)
-    const tgUsername = ctx.from?.username;
-    if (tgUsername) {
-      // Check for client first
-      user = await this.userService.findByTgUsername(tgUsername);
-      if (user && user.role === UserRole.CLIENT && !user.tg_id) {
-        // Update client's tg_id and name if missing
-        const updateData: any = { tg_id: tgId };
-        if (!user.name && ctx.from) {
-          const fullName =
-            ctx.from.first_name +
-            (ctx.from.last_name ? ` ${ctx.from.last_name}` : '');
-          updateData.name = fullName;
-        }
-        user = await this.userService.update(user.id, updateData);
-        const menu = getClientMainMenu();
-        return ctx.reply(
-          `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
-          { reply_markup: menu },
-        );
-      }
-      
-      // Check for barber
-      if (!user || user.role !== UserRole.CLIENT) {
-        user = await this.userService.findBarberByTgUsername(tgUsername);
-        if (user && !user.tg_id) {
-          // Update barber's tg_id and name if missing
-          const updateData: any = { tg_id: tgId };
-          if (!user.name && ctx.from) {
-            const fullName =
-              ctx.from.first_name +
-              (ctx.from.last_name ? ` ${ctx.from.last_name}` : '');
-            updateData.name = fullName;
-          }
-          user = await this.userService.update(user.id, updateData);
-          const menu = getBarberMainMenu();
-          const message = `
+      } else if (
+        user.role === UserRole.ADMIN ||
+        user.role === UserRole.SUPER_ADMIN
+      ) {
+        const menu = getAdminMainMenu();
+        const roleName =
+          user.role === UserRole.ADMIN
+            ? 'Administrator (Admin)'
+            : 'Super Administrator';
+        const message = `
 👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
 
-💈 <i>Barber paneliga xush kelibsiz.</i>
-
-Quyidagi bo'limlardan birini tanlang:
+✅ <b>Sizning rolingiz: ${roleName}</b>
 
 ━━━━━━━━━━━━━━━━━━
 
+📋 <b>Vazifangiz:</b>
+
+Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifangiz:
+
+✅ <b>Bronni tasdiqlash</b> - Mijozga tasdiqlash xabari yuboriladi
+❌ <b>Bronni bekor qilish</b> - Mijozga rad etish xabari yuboriladi
+✅ <b>Bronni yakunlash</b> - Xizmat bajarilgandan keyin bronni yakunlash
+
+━━━━━━━━━━━━━━━━━━
+
+Quyidagi bo'limlardan birini tanlang:
+
 `;
-          return ctx.reply(message, {
-            reply_markup: menu,
-            parse_mode: 'HTML',
-          });
-        }
+        return ctx.reply(message, {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        });
       }
     }
 

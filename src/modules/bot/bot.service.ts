@@ -245,6 +245,12 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
+    // Admin profil callback handler
+    this.bot.callbackQuery('admin_profile', async (ctx) => {
+      await this.clientMenuHandler.handleAdminProfile(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
     // Skip comment callback
     this.bot.callbackQuery('skip_comment', async (ctx) => {
       await this.bookingHandler.handleSkipComment(ctx);
@@ -271,15 +277,28 @@ export class BotService implements OnModuleInit {
         const booking = await this.bookingService.approve(bookingId);
         if (booking) {
           await ctx.answerCallbackQuery({ text: '✅ Booking tasdiqlandi!' });
-          await ctx.editMessageText(
-            ctx.callbackQuery.message?.text?.replace('🟡 PENDING', '🟢 APPROVED') || ctx.callbackQuery.message?.text || '',
-            { parse_mode: 'HTML' }
-          );
           
-          // Client'ga xabar yuborish
+          // Xabarni yangilash va yakunlash tugmasini qo'shish
           const bookingWithRelations = await this.bookingService.findOne(bookingId);
-          if (bookingWithRelations?.client?.tg_id) {
-            const clientMessage = `
+          if (bookingWithRelations) {
+            const updatedMessage = (ctx.callbackQuery.message?.text || '')
+              .replace('🟡 PENDING', '🟢 APPROVED')
+              .replace('📋 <b>Status:</b> 🟡 PENDING', '📋 <b>Status:</b> 🟢 APPROVED');
+            
+            // Yakunlash tugmasini qo'shish
+            const keyboard = new InlineKeyboard();
+            keyboard
+              .text('✅ Yakunlash', `complete_booking_${bookingId}`)
+              .row();
+            
+            await ctx.editMessageText(updatedMessage, {
+              parse_mode: 'HTML',
+              reply_markup: keyboard,
+            });
+            
+            // Client'ga xabar yuborish
+            if (bookingWithRelations.client?.tg_id) {
+              const clientMessage = `
 <b>✅ Booking tasdiqlandi!</b>
 
 ━━━━━━━━━━━━━━━━━━
@@ -292,7 +311,13 @@ export class BotService implements OnModuleInit {
 
 Xizmat vaqtida kelishingizni so'raymiz! 🎉
 `;
-            await this.sendMessage(bookingWithRelations.client.tg_id, clientMessage, { parse_mode: 'HTML' });
+              await this.sendMessage(bookingWithRelations.client.tg_id, clientMessage, { parse_mode: 'HTML' });
+            }
+          } else {
+            await ctx.editMessageText(
+              ctx.callbackQuery.message?.text?.replace('🟡 PENDING', '🟢 APPROVED') || ctx.callbackQuery.message?.text || '',
+              { parse_mode: 'HTML' }
+            );
           }
         } else {
           await ctx.answerCallbackQuery({ text: 'Booking topilmadi.', show_alert: true });
@@ -350,6 +375,72 @@ Afsuski, sizning bookingingiz bekor qilindi. Iltimos, boshqa vaqtni tanlang yoki
         }
       } catch (error) {
         console.error('Failed to reject booking:', error);
+        await ctx.answerCallbackQuery({ text: 'Xatolik yuz berdi.', show_alert: true });
+      }
+    });
+
+    // Booking yakunlash callback handler
+    this.bot.callbackQuery(/^complete_booking_(\d+)$/, async (ctx) => {
+      const bookingId = parseInt(ctx.match[1]);
+      const tgId = ctx.from?.id.toString();
+      if (!tgId) {
+        await ctx.answerCallbackQuery({ text: 'Xatolik yuz berdi.', show_alert: true });
+        return;
+      }
+
+      // Admin yoki SUPER_ADMIN ekanligini tekshirish
+      const user = await this.userService.findByTgId(tgId);
+      if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+        await ctx.answerCallbackQuery({ text: 'Sizda bu amalni bajarish huquqi yo\'q.', show_alert: true });
+        return;
+      }
+
+      try {
+        const booking = await this.bookingService.complete(bookingId);
+        if (booking) {
+          await ctx.answerCallbackQuery({ text: '✅ Booking yakunlandi!' });
+          
+          // Xabarni yangilash
+          const bookingWithRelations = await this.bookingService.findOne(bookingId);
+          if (bookingWithRelations) {
+            const updatedMessage = (ctx.callbackQuery.message?.text || '')
+              .replace('🟢 APPROVED', '✅ COMPLETED')
+              .replace('📋 <b>Status:</b> 🟢 APPROVED', '📋 <b>Status:</b> ✅ COMPLETED');
+            
+            await ctx.editMessageText(updatedMessage, {
+              parse_mode: 'HTML',
+            });
+            
+            // Client'ga xabar yuborish
+            if (bookingWithRelations.client?.tg_id) {
+              const clientMessage = `
+<b>✅ Xizmat yakunlandi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+📅 <b>Sana:</b> ${bookingWithRelations.date}
+🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
+👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
+
+━━━━━━━━━━━━━━━━━━
+
+Xizmat muvaffaqiyatli yakunlandi! Xizmatimizdan foydalanganingiz uchun rahmat! 🎉
+
+Iltimos, xizmat haqida fikringizni bildiring.
+`;
+              await this.sendMessage(bookingWithRelations.client.tg_id, clientMessage, { parse_mode: 'HTML' });
+            }
+          } else {
+            await ctx.editMessageText(
+              ctx.callbackQuery.message?.text?.replace('🟢 APPROVED', '✅ COMPLETED') || ctx.callbackQuery.message?.text || '',
+              { parse_mode: 'HTML' }
+            );
+          }
+        } else {
+          await ctx.answerCallbackQuery({ text: 'Booking topilmadi.', show_alert: true });
+        }
+      } catch (error) {
+        console.error('Failed to complete booking:', error);
         await ctx.answerCallbackQuery({ text: 'Xatolik yuz berdi.', show_alert: true });
       }
     });

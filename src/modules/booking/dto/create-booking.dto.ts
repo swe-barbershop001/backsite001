@@ -34,6 +34,10 @@ export class CreateBookingDto {
   @IsNotEmpty()
   time: string; // HH:mm
 
+  @ApiProperty({ description: 'Client name (optional)', example: 'John Doe', required: false })
+  @IsString()
+  client_name?: string; // Mijoz ismi
+
   // Status client tomonidan yuborilmaydi, har doim PENDING bo'ladi
 }
 

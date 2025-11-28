@@ -10,6 +10,8 @@ import config, { envValidation } from './config';
 import { AuthModule } from './modules/auth/auth.module';
 import { InitService } from './common/services/init.service';
 import { User } from './modules/user/entities/user.entity';
+import { CleanupModule } from './modules/cleanup/cleanup.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -24,12 +26,14 @@ import { User } from './modules/user/entities/user.entity';
       useFactory: getDatabaseConfig,
       inject: [ConfigService],
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forFeature([User]),
     AuthModule,
     UserModule,
     BarberServiceModule,
     BookingModule,
     BotModule,
+    CleanupModule,
   ],
   providers: [InitService],
 })

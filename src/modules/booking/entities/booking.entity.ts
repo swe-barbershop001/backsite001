@@ -40,6 +40,9 @@ export class Booking {
   @Column({ nullable: true, type: 'text' })
   comment?: string; // Client tomonidan yozilgan izoh
 
+  @Column({ default: false })
+  notification_sent: boolean; // 30 daqiqa oldin ogohlantirish yuborilganligi
+
   @ManyToOne(() => User, (user) => user.clientBookings)
   @JoinColumn({ name: 'client_id' })
   client: User;

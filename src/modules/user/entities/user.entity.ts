@@ -16,14 +16,14 @@ export class User {
   @Column({ nullable: true })
   name?:string;
 
-  @Column({ unique: true, nullable: true })
+  @Column({ nullable: true })
   phone_number?: string;
 
   @Column({ unique: true, nullable: true })
   tg_id?: string;
 
-  @Column({ unique: true, nullable: false })
-  tg_username: string;
+  @Column({ unique: true, nullable: true })
+  tg_username?: string;
 
   @Column({ nullable: true })
   password?: string; // Hash qilingan password (bot orqali ro'yxatdan o'tganda bo'lmaydi)

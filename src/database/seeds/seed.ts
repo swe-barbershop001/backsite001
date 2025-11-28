@@ -48,131 +48,131 @@ async function seed() {
     // Hash password for all users
     const hashedPassword = await bcrypt.hash('password123', 10);
 
-    // Create Clients
-    console.log('👥 Creating clients...');
-    const clients = [
-      {
-        name: 'Ali Valiyev',
-        phone_number: '+998901234567',
-        tg_id: '1000000001',
-        tg_username: 'ali_valiyev',
-        password: hashedPassword,
-        role: UserRole.CLIENT,
-      },
-      {
-        name: 'Vali Aliyev',
-        phone_number: '+998901234568',
-        tg_id: '1000000002',
-        tg_username: 'vali_aliyev',
-        password: hashedPassword,
-        role: UserRole.CLIENT,
-      },
-      {
-        name: 'Hasan Hasanov',
-        phone_number: '+998901234569',
-        tg_id: '1000000003',
-        tg_username: 'hasan_hasanov',
-        password: hashedPassword,
-        role: UserRole.CLIENT,
-      },
-      {
-        name: 'Husan Husanov',
-        phone_number: '+998901234570',
-        tg_id: '1000000004',
-        tg_username: 'husan_husanov',
-        password: hashedPassword,
-        role: UserRole.CLIENT,
-      },
-      {
-        name: 'Akmal Akmalov',
-        phone_number: '+998901234571',
-        tg_id: '1000000005',
-        tg_username: 'akmal_akmalov',
-        password: hashedPassword,
-        role: UserRole.CLIENT,
-      },
-    ];
+    // // Create Clients
+    // console.log('👥 Creating clients...');
+    // const clients = [
+    //   {
+    //     name: 'Ali Valiyev',
+    //     phone_number: '+998901234567',
+    //     tg_id: '1000000001',
+    //     tg_username: 'ali_valiyev',
+    //     password: hashedPassword,
+    //     role: UserRole.CLIENT,
+    //   },
+    //   {
+    //     name: 'Vali Aliyev',
+    //     phone_number: '+998901234568',
+    //     tg_id: '1000000002',
+    //     tg_username: 'vali_aliyev',
+    //     password: hashedPassword,
+    //     role: UserRole.CLIENT,
+    //   },
+    //   {
+    //     name: 'Hasan Hasanov',
+    //     phone_number: '+998901234569',
+    //     tg_id: '1000000003',
+    //     tg_username: 'hasan_hasanov',
+    //     password: hashedPassword,
+    //     role: UserRole.CLIENT,
+    //   },
+    //   {
+    //     name: 'Husan Husanov',
+    //     phone_number: '+998901234570',
+    //     tg_id: '1000000004',
+    //     tg_username: 'husan_husanov',
+    //     password: hashedPassword,
+    //     role: UserRole.CLIENT,
+    //   },
+    //   {
+    //     name: 'Akmal Akmalov',
+    //     phone_number: '+998901234571',
+    //     tg_id: '1000000005',
+    //     tg_username: 'akmal_akmalov',
+    //     password: hashedPassword,
+    //     role: UserRole.CLIENT,
+    //   },
+    // ];
 
-    const savedClients = await userRepository.save(clients);
-    console.log(`✅ Created ${savedClients.length} clients`);
+    // const savedClients = await userRepository.save(clients);
+    // console.log(`✅ Created ${savedClients.length} clients`);
 
-    // Create Barbers
-    console.log('💈 Creating barbers...');
-    const barbers = [
-      {
-        name: 'Rustam Rustamov',
-        phone_number: '+998902345678',
-        tg_id: '2000000001',
-        tg_username: 'rustam_barber',
-        password: hashedPassword,
-        role: UserRole.BARBER,
-        working: true,
-        work_start_time: '09:00',
-        work_end_time: '18:00',
-      },
-      {
-        name: 'Javohir Javohirov',
-        phone_number: '+998902345679',
-        tg_id: '2000000002',
-        tg_username: 'javohir_barber',
-        password: hashedPassword,
-        role: UserRole.BARBER,
-        working: true,
-        work_start_time: '10:00',
-        work_end_time: '19:00',
-      },
-      {
-        name: 'Sardor Sardorov',
-        phone_number: '+998902345680',
-        tg_id: '2000000003',
-        tg_username: 'sardor_barber',
-        password: hashedPassword,
-        role: UserRole.BARBER,
-        working: false,
-        work_start_time: '08:00',
-        work_end_time: '17:00',
-      },
-      {
-        name: 'Dilshod Dilshodov',
-        phone_number: '+998902345681',
-        tg_id: '2000000004',
-        tg_username: 'dilshod_barber',
-        password: hashedPassword,
-        role: UserRole.BARBER,
-        working: true,
-        work_start_time: '09:00',
-        work_end_time: '18:00',
-      },
-      {
-        name: 'Farhod Farhodov',
-        phone_number: '+998902345682',
-        tg_id: '2000000005',
-        tg_username: 'farhod_barber',
-        password: hashedPassword,
-        role: UserRole.BARBER,
-        working: true,
-        work_start_time: '10:00',
-        work_end_time: '20:00',
-      },
-    ];
+    // // Create Barbers
+    // console.log('💈 Creating barbers...');
+    // const barbers = [
+    //   {
+    //     name: 'Rustam Rustamov',
+    //     phone_number: '+998902345678',
+    //     tg_id: '2000000001',
+    //     tg_username: 'rustam_barber',
+    //     password: hashedPassword,
+    //     role: UserRole.BARBER,
+    //     working: true,
+    //     work_start_time: '09:00',
+    //     work_end_time: '18:00',
+    //   },
+    //   {
+    //     name: 'Javohir Javohirov',
+    //     phone_number: '+998902345679',
+    //     tg_id: '2000000002',
+    //     tg_username: 'javohir_barber',
+    //     password: hashedPassword,
+    //     role: UserRole.BARBER,
+    //     working: true,
+    //     work_start_time: '10:00',
+    //     work_end_time: '19:00',
+    //   },
+    //   {
+    //     name: 'Sardor Sardorov',
+    //     phone_number: '+998902345680',
+    //     tg_id: '2000000003',
+    //     tg_username: 'sardor_barber',
+    //     password: hashedPassword,
+    //     role: UserRole.BARBER,
+    //     working: false,
+    //     work_start_time: '08:00',
+    //     work_end_time: '17:00',
+    //   },
+    //   {
+    //     name: 'Dilshod Dilshodov',
+    //     phone_number: '+998902345681',
+    //     tg_id: '2000000004',
+    //     tg_username: 'dilshod_barber',
+    //     password: hashedPassword,
+    //     role: UserRole.BARBER,
+    //     working: true,
+    //     work_start_time: '09:00',
+    //     work_end_time: '18:00',
+    //   },
+    //   {
+    //     name: 'Farhod Farhodov',
+    //     phone_number: '+998902345682',
+    //     tg_id: '2000000005',
+    //     tg_username: 'farhod_barber',
+    //     password: hashedPassword,
+    //     role: UserRole.BARBER,
+    //     working: true,
+    //     work_start_time: '10:00',
+    //     work_end_time: '20:00',
+    //   },
+    // ];
 
-    const savedBarbers = await userRepository.save(barbers);
-    console.log(`✅ Created ${savedBarbers.length} barbers`);
+    // const savedBarbers = await userRepository.save(barbers);
+    // console.log(`✅ Created ${savedBarbers.length} barbers`);
 
-    // Create Admin
-    console.log('👑 Creating admin...');
-    const admin = {
-      name: 'Admin Adminov',
-      phone_number: '+998903456789',
-      tg_id: '3000000001',
-      tg_username: 'admin_user',
-      password: hashedPassword,
-      role: UserRole.ADMIN,
-      working: false,
-    };
+    // // Create Admin
+    // console.log('👑 Creating admin...');
+    // const admin = {
+    //   name: 'Admin Adminov',
+    //   phone_number: '+998903456789',
+    //   tg_id: '3000000001',
+    //   tg_username: 'admin_user',
+    //   password: hashedPassword,
+    //   role: UserRole.ADMIN,
+    //   working: false,
+    // };
 
-    const savedAdmin = await userRepository.save(admin);
-    console.log(`✅ Created admin: ${savedAdmin.name}`);
+    // const savedAdmin = await userRepository.save(admin);
+    // console.log(`✅ Created admin: ${savedAdmin.name}`);
 
     // Create Barber Services
     console.log('✂️  Creating barber services...');
@@ -232,142 +232,142 @@ async function seed() {
     const savedServices = await serviceRepository.save(services);
     console.log(`✅ Created ${savedServices.length} services`);
 
-    // Create Bookings
-    console.log('📅 Creating bookings...');
-    const today = new Date();
-    const bookings: Array<{
-      client_id: number;
-      barber_id: number;
-      service_id: number;
-      date: string;
-      time: string;
-      status: BookingStatus;
-      comment?: string;
-    }> = [
-      // PENDING bookings - comment bo'lmaydi (yangi yaratilgan)
-      {
-        client_id: savedClients[0].id,
-        barber_id: savedBarbers[0].id,
-        service_id: savedServices[0].id,
-        date: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '10:00',
-        status: BookingStatus.PENDING,
-      },
-      // APPROVED bookings - ba'zilarida comment bor (yakunlangandan keyin yozilgan)
-      {
-        client_id: savedClients[1].id,
-        barber_id: savedBarbers[0].id,
-        service_id: savedServices[1].id,
-        date: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '11:00',
-        status: BookingStatus.APPROVED,
-        comment:
-          "Ajoyib xizmat! Barber juda professional va ehtiyotkor edi. Soqolni toza qilib qo'ydi.",
-      },
-      {
-        client_id: savedClients[2].id,
-        barber_id: savedBarbers[1].id,
-        service_id: savedServices[2].id,
-        date: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '14:00',
-        status: BookingStatus.PENDING,
-      },
-      // APPROVED booking - comment bor
-      {
-        client_id: savedClients[0].id,
-        barber_id: savedBarbers[1].id,
-        service_id: savedServices[3].id,
-        date: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '15:00',
-        status: BookingStatus.APPROVED,
-        comment:
-          "Yuz parvarishi juda yaxshi bo'ldi. Maxsus krem ishlatilgani sezildi.",
-      },
-      // REJECTED booking - comment bo'lmaydi
-      {
-        client_id: savedClients[3].id,
-        barber_id: savedBarbers[2].id,
-        service_id: savedServices[4].id,
-        date: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '09:00',
-        status: BookingStatus.REJECTED,
-      },
-      {
-        client_id: savedClients[4].id,
-        barber_id: savedBarbers[3].id,
-        service_id: savedServices[5].id,
-        date: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '16:00',
-        status: BookingStatus.PENDING,
-      },
-      // APPROVED booking - comment bor
-      {
-        client_id: savedClients[1].id,
-        barber_id: savedBarbers[3].id,
-        service_id: savedServices[6].id,
-        date: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '10:30',
-        status: BookingStatus.APPROVED,
-        comment: "Sochni yaxshi yuvdi, lekin biroz tezroq bo'lishi mumkin edi.",
-      },
-      {
-        client_id: savedClients[2].id,
-        barber_id: savedBarbers[4].id,
-        service_id: savedServices[7].id,
-        date: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '13:00',
-        status: BookingStatus.PENDING,
-      },
-      // APPROVED booking - comment yo'q (hali yozilmagan, client'dan so'ralishi kerak)
-      {
-        client_id: savedClients[3].id,
-        barber_id: savedBarbers[4].id,
-        service_id: savedServices[8].id,
-        date: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '11:00',
-        status: BookingStatus.APPROVED,
-        // Bu booking yakunlangan, lekin client hali comment yozmagan
-      },
-      {
-        client_id: savedClients[4].id,
-        barber_id: savedBarbers[0].id,
-        service_id: savedServices[9].id,
-        date: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
-        time: '14:30',
-        status: BookingStatus.PENDING,
-      },
-    ];
+    // // Create Bookings
+    // console.log('📅 Creating bookings...');
+    // const today = new Date();
+    // const bookings: Array<{
+    //   client_id: number;
+    //   barber_id: number;
+    //   service_id: number;
+    //   date: string;
+    //   time: string;
+    //   status: BookingStatus;
+    //   comment?: string;
+    // }> = [
+    //   // PENDING bookings - comment bo'lmaydi (yangi yaratilgan)
+    //   {
+    //     client_id: savedClients[0].id,
+    //     barber_id: savedBarbers[0].id,
+    //     service_id: savedServices[0].id,
+    //     date: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '10:00',
+    //     status: BookingStatus.PENDING,
+    //   },
+    //   // APPROVED bookings - ba'zilarida comment bor (yakunlangandan keyin yozilgan)
+    //   {
+    //     client_id: savedClients[1].id,
+    //     barber_id: savedBarbers[0].id,
+    //     service_id: savedServices[1].id,
+    //     date: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '11:00',
+    //     status: BookingStatus.APPROVED,
+    //     comment:
+    //       "Ajoyib xizmat! Barber juda professional va ehtiyotkor edi. Soqolni toza qilib qo'ydi.",
+    //   },
+    //   {
+    //     client_id: savedClients[2].id,
+    //     barber_id: savedBarbers[1].id,
+    //     service_id: savedServices[2].id,
+    //     date: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '14:00',
+    //     status: BookingStatus.PENDING,
+    //   },
+    //   // APPROVED booking - comment bor
+    //   {
+    //     client_id: savedClients[0].id,
+    //     barber_id: savedBarbers[1].id,
+    //     service_id: savedServices[3].id,
+    //     date: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '15:00',
+    //     status: BookingStatus.APPROVED,
+    //     comment:
+    //       "Yuz parvarishi juda yaxshi bo'ldi. Maxsus krem ishlatilgani sezildi.",
+    //   },
+    //   // REJECTED booking - comment bo'lmaydi
+    //   {
+    //     client_id: savedClients[3].id,
+    //     barber_id: savedBarbers[2].id,
+    //     service_id: savedServices[4].id,
+    //     date: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '09:00',
+    //     status: BookingStatus.REJECTED,
+    //   },
+    //   {
+    //     client_id: savedClients[4].id,
+    //     barber_id: savedBarbers[3].id,
+    //     service_id: savedServices[5].id,
+    //     date: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '16:00',
+    //     status: BookingStatus.PENDING,
+    //   },
+    //   // APPROVED booking - comment bor
+    //   {
+    //     client_id: savedClients[1].id,
+    //     barber_id: savedBarbers[3].id,
+    //     service_id: savedServices[6].id,
+    //     date: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '10:30',
+    //     status: BookingStatus.APPROVED,
+    //     comment: "Sochni yaxshi yuvdi, lekin biroz tezroq bo'lishi mumkin edi.",
+    //   },
+    //   {
+    //     client_id: savedClients[2].id,
+    //     barber_id: savedBarbers[4].id,
+    //     service_id: savedServices[7].id,
+    //     date: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '13:00',
+    //     status: BookingStatus.PENDING,
+    //   },
+    //   // APPROVED booking - comment yo'q (hali yozilmagan, client'dan so'ralishi kerak)
+    //   {
+    //     client_id: savedClients[3].id,
+    //     barber_id: savedBarbers[4].id,
+    //     service_id: savedServices[8].id,
+    //     date: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '11:00',
+    //     status: BookingStatus.APPROVED,
+    //     // Bu booking yakunlangan, lekin client hali comment yozmagan
+    //   },
+    //   {
+    //     client_id: savedClients[4].id,
+    //     barber_id: savedBarbers[0].id,
+    //     service_id: savedServices[9].id,
+    //     date: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
+    //       .toISOString()
+    //       .split('T')[0],
+    //     time: '14:30',
+    //     status: BookingStatus.PENDING,
+    //   },
+    // ];
 
-    const savedBookings = await bookingRepository.save(bookings);
-    console.log(`✅ Created ${savedBookings.length} bookings`);
+    // const savedBookings = await bookingRepository.save(bookings);
+    // console.log(`✅ Created ${savedBookings.length} bookings`);
 
     console.log('\n🎉 Seed completed successfully!');
-    console.log('\n📊 Summary:');
-    console.log(`   - ${savedClients.length} clients`);
-    console.log(`   - ${savedBarbers.length} barbers`);
-    console.log(`   - 1 admin`);
-    console.log(`   - ${savedServices.length} services`);
-    console.log(`   - ${savedBookings.length} bookings`);
+    // console.log('\n📊 Summary:');
+    // console.log(`   - ${savedClients.length} clients`);
+    // console.log(`   - ${savedBarbers.length} barbers`);
+    // console.log(`   - 1 admin`);
+    // console.log(`   - ${savedServices.length} services`);
+    // console.log(`   - ${savedBookings.length} bookings`);
     console.log('\n🔑 Default password for all users: password123');
     console.log('\n📝 Notes:');
     console.log('   - Only ADMIN and SUPER_ADMIN can login/register via API');
