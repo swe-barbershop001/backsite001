@@ -33,7 +33,34 @@ ssh-keygen -t ed25519 -C "github-actions"
 
 ## 🔨 SSH Key yaratish
 
-### Variant 1: Yangi SSH Key yaratish (Tavsiya etiladi)
+### Variant 1: AWS Key Pair ishlatish (Tavsiya etiladi - EC2 uchun)
+
+Agar AWS orqali EC2 instance yaratgan bo'lsangiz, key pair avtomatik yaratilgan:
+
+```bash
+# 1. AWS'dan yuklab olingan .pem faylini ko'rish
+cat ~/.ssh/your-key.pem
+
+# Yoki Downloads papkasida bo'lsa:
+cat ~/Downloads/your-key.pem
+
+# 2. Key format'ini tekshirish
+head -1 ~/.ssh/your-key.pem
+# Natija: -----BEGIN RSA PRIVATE KEY----- bo'lishi kerak
+
+tail -1 ~/.ssh/your-key.pem
+# Natija: -----END RSA PRIVATE KEY----- bo'lishi kerak
+
+# 3. Key'ni to'g'ri joyga ko'chirish (ixtiyoriy)
+mv ~/Downloads/your-key.pem ~/.ssh/your-key.pem
+chmod 400 ~/.ssh/your-key.pem
+```
+
+**Muhim:** AWS Key Pair yaratilganda, public key avtomatik ravishda EC2 instance'ga qo'shiladi. Faqat private key'ni GitHub Secrets'ga qo'shishingiz kerak!
+
+### Variant 2: Yangi SSH Key yaratish
+
+Agar AWS Key Pair ishlatmoqchi bo'lmasangiz:
 
 ```bash
 # 1. SSH key yaratish
@@ -47,19 +74,6 @@ cat ~/.ssh/github_actions_deploy
 
 # 3. Public key'ni ko'rish (EC2'ga qo'shish uchun)
 cat ~/.ssh/github_actions_deploy.pub
-```
-
-### Variant 2: Mavjud EC2 Key Pair ishlatish
-
-Agar AWS orqali key pair yaratgan bo'lsangiz:
-
-```bash
-# Key'ni ko'rish
-cat ~/.ssh/your-key.pem
-
-# Key format'ini tekshirish
-head -1 ~/.ssh/your-key.pem
-tail -1 ~/.ssh/your-key.pem
 ```
 
 ---
@@ -78,24 +92,48 @@ tail -1 ~/.ssh/your-key.pem
 
 ### 2-qadam: Public Key'ni EC2'ga qo'shish
 
-#### Variant A: Yangi key yaratgan bo'lsangiz
+#### Variant A: AWS Key Pair ishlatgan bo'lsangiz (Tavsiya etiladi)
+
+**Muhim:** AWS Key Pair yaratilganda, public key avtomatik ravishda EC2 instance'ga qo'shiladi! Hech qanday qo'shimcha sozlash kerak emas.
+
+Faqat tekshirish:
+
+```bash
+# EC2'ga ulaning
+ssh -i ~/.ssh/your-key.pem ubuntu@your-ec2-ip
+
+# Public key mavjudligini tekshiring
+cat ~/.ssh/authorized_keys
+# Bu yerda sizning public key'ingiz ko'rinishi kerak
+```
+
+Agar ulanish ishlamasa, quyidagilarni tekshiring:
+
+```bash
+# File permissions'ni tekshiring
+ls -la ~/.ssh/
+# .ssh/ 700 bo'lishi kerak
+# authorized_keys 600 bo'lishi kerak
+
+# Agar kerak bo'lsa, to'g'rilang
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+```
+
+#### Variant B: Yangi key yaratgan bo'lsangiz
 
 ```bash
 # Local'da public key'ni ko'ring
 cat ~/.ssh/github_actions_deploy.pub
 
-# EC2'ga SSH orqali ulaning (mavjud key bilan)
-ssh -i ~/.ssh/your-ec2-key.pem ubuntu@your-ec2-ip
+# EC2'ga SSH orqali ulaning (AWS key pair bilan)
+ssh -i ~/.ssh/your-aws-key.pem ubuntu@your-ec2-ip
 
 # EC2'da authorized_keys fayliga qo'shing
 echo "YOUR_PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 chmod 700 ~/.ssh
 ```
-
-#### Variant B: EC2 Key Pair ishlatgan bo'lsangiz
-
-Agar AWS orqali key pair yaratgan bo'lsangiz, public key avtomatik qo'shiladi. Faqat private key'ni GitHub Secrets'ga qo'shing.
 
 ### 3-qadam: SSH sozlamalarini tekshirish
 
@@ -132,54 +170,59 @@ cat ~/.ssh/your-key.pem
 3. **New repository secret** tugmasini bosing
 4. Quyidagilarni qo'shing:
 
-#### `DEPLOY_SSH_KEY`
+#### `DEPLOY_SSH_KEY` (AWS Key Pair uchun)
 
-**Muhim:** Key'ni to'liq ko'chirib oling!
+**Muhim:** AWS Key Pair (.pem fayl) to'liq ko'chirib oling!
 
-```
------BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAACFwAAAAdzc2gtcn
-...
-(many lines)
-...
------END OPENSSH PRIVATE KEY-----
-```
-
-**Yoki RSA key bo'lsa:**
+**AWS Key Pair format:**
 
 ```
 -----BEGIN RSA PRIVATE KEY-----
-MIIEpAIBAAKCAQEA...
-(many lines)
+MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdef
+...
+(many lines of base64 encoded data)
 ...
 -----END RSA PRIVATE KEY-----
 ```
 
-**Yoki EC2 .pem key:**
-
-```
------BEGIN RSA PRIVATE KEY-----
-MIIEpAIBAAKCAQEA...
-(many lines)
-...
------END RSA PRIVATE KEY-----
-```
-
-**Qanday ko'chirish:**
+**Qanday ko'chirish (AWS Key Pair):**
 
 1. Terminal'da key'ni ko'ring:
    ```bash
+   # Agar Downloads papkasida bo'lsa
+   cat ~/Downloads/your-key.pem
+   
+   # Yoki .ssh papkasida bo'lsa
    cat ~/.ssh/your-key.pem
    ```
 
 2. **Barcha qatorlarni** ko'chiring (bo'sh qatorlar ham):
-   - `-----BEGIN` dan boshlanadi
-   - `-----END` bilan tugaydi
-   - Barcha oraliq qatorlar ham
+   - `-----BEGIN RSA PRIVATE KEY-----` dan boshlanadi
+   - `-----END RSA PRIVATE KEY-----` bilan tugaydi
+   - Barcha oraliq qatorlar ham (odatda 20-30 qator)
 
-3. GitHub Secrets'ga yopishtiring
+3. GitHub Secrets'ga yopishtiring:
+   - Name: `DEPLOY_SSH_KEY`
+   - Value: Key'ni yopishtiring
 
 4. Key'ning boshida va oxirida qo'shimcha bo'shliq bo'lmasligi kerak
+
+**Tekshirish:**
+
+```bash
+# Key'ning boshida tekshirish
+head -1 ~/.ssh/your-key.pem
+# Natija: -----BEGIN RSA PRIVATE KEY----- bo'lishi kerak
+
+# Key'ning oxirida tekshirish
+tail -1 ~/.ssh/your-key.pem
+# Natija: -----END RSA PRIVATE KEY----- bo'lishi kerak
+
+# Key uzunligini tekshirish
+wc -l ~/.ssh/your-key.pem
+# Natija: kamida 20-30 qator bo'lishi kerak
+```
 
 #### `DEPLOY_HOST`
 
