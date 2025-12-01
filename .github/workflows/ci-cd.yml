@@ -14,52 +14,9 @@ env:
   NODE_VERSION: '20.x'
 
 jobs:
-  # CI Job - Test, Lint va Build
-  ci:
-    name: Continuous Integration
-    runs-on: ubuntu-latest
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: barbershop_db_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: 📥 Install dependencies
-        run: npm ci
-
-      - name: 🏗️ Build application
-        run: npm run build
-        env:
-          NODE_ENV: production
-
-      - name: 🧪 Run tests (if available)
-        run: npm test -- --passWithNoTests || echo "No tests found"
-        continue-on-error: true
-
-  # CD Job - Deploy (faqat main branch uchun)
-  deploy:
-    name: Deploy to Production
-    needs: ci
+  # CI/CD Job - Build va Deploy
+  build-and-deploy:
+    name: Build and Deploy
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
