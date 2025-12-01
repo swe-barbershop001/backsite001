@@ -52,8 +52,18 @@ Quyidagilarni **Variables** bo'limiga qo'shing:
 2. **JWT_TOKEN_SECRET** - Production'da kuchliroq key ishlatish tavsiya etiladi
 3. **DB_HOST** - Docker Compose'da `db` bo'ladi (container nomi)
 4. **DB_PASSWORD** - Production'da xavfsiz parol ishlatish tavsiya etiladi
-5. **DEPLOY_SSH_KEY** - SSH key'ni to'liq ko'chirib oling (-----BEGIN dan -----END gacha)
+5. **DEPLOY_SSH_KEY** - SSH key'ni to'liq ko'chirib oling (-----BEGIN dan -----END gacha, barcha qatorlar)
 6. **DEPLOY_USER** - Ubuntu uchun `ubuntu` (default)
+
+## 🔐 SSH Key haqida batafsil ma'lumot
+
+Batafsil qo'llanma uchun [SSH_KEY_SETUP.md](./SSH_KEY_SETUP.md) faylini ko'rib chiqing.
+
+**Qisqacha:**
+- SSH key'ni to'liq ko'chirib oling (barcha qatorlar, bo'sh qatorlar ham)
+- Key'ning boshida va oxirida qo'shimcha bo'shliq bo'lmasligi kerak
+- EC2'da public key `~/.ssh/authorized_keys` fayliga qo'shilgan bo'lishi kerak
+- Security Group'da port 22 (SSH) ochiq bo'lishi kerak
 
 ---
 
