@@ -10,6 +10,7 @@ Telegram orqali sartaroshxona xizmatlarini bron qilish va boshqarish uchun yarat
 - [O'rnatish](#ornatish)
 - [Konfiguratsiya](#konfiguratsiya)
 - [Ishga tushirish](#ishga-tushirish)
+- [CI/CD](#cicd)
 - [Foydalanish](#foydalanish)
 - [API Dokumentatsiya](#api-dokumentatsiya)
 - [Loyiha struktura](#loyiha-struktura)
@@ -165,6 +166,51 @@ npm run lint
 
 # Testlar
 npm run test
+```
+
+## 🚀 CI/CD
+
+Loyiha GitHub Actions orqali CI/CD pipeline bilan jihozlangan. Har bir push va pull request'da avtomatik test, lint va build amallari bajariladi. `main` branch'ga push qilinganda avtomatik ravishda EC2 server'ga Docker va Docker Compose orqali deploy qilinadi.
+
+### CI/CD sozlash
+
+Batafsil qo'llanma uchun [CI_CD_SETUP.md](./CI_CD_SETUP.md) faylini ko'rib chiqing.
+
+**Qisqacha:**
+
+1. **GitHub Secrets** qo'shing (Settings → Secrets and variables → Actions → Secrets):
+   - `BOT_TOKEN` - Telegram bot token
+   - `JWT_TOKEN_SECRET` - JWT secret key
+   - `DB_PASSWORD` - Database paroli
+   - `SUPER_ADMIN_PASSWORD` - Super admin paroli
+   - `DEPLOY_HOST` - EC2 server IP yoki DNS
+   - `DEPLOY_USER` - EC2 foydalanuvchi nomi (ubuntu)
+   - `DEPLOY_SSH_KEY` - SSH private key
+
+2. **GitHub Variables** qo'shing (Settings → Secrets and variables → Actions → Variables):
+   - `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_DATABASE`
+   - `PORT`, `JWT_TOKEN_EXPIRATION`
+   - `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_NAME`, `SUPER_ADMIN_PHONE`
+
+3. Workflow avtomatik ishga tushadi va:
+   - Kod sifati tekshiruvi (ESLint)
+   - Build yaratish
+   - Testlar (agar mavjud bo'lsa)
+   - EC2'ga Docker va Docker Compose orqali deploy qilish
+
+### Docker
+
+Loyiha Docker va Docker Compose bilan jihozlangan:
+
+```bash
+# Local'da ishga tushirish
+docker-compose up -d
+
+# Log'larni ko'rish
+docker-compose logs -f app
+
+# To'xtatish
+docker-compose down
 ```
 
 ## 📱 Foydalanish
