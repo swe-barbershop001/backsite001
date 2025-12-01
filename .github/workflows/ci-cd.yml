@@ -81,14 +81,26 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: 🔑 Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Key format tekshiruvi
+          head -1 ~/.ssh/deploy_key
+          tail -1 ~/.ssh/deploy_key
+          # Known hosts qo'shish
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
       - name: 🚀 Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          key_path: ~/.ssh/deploy_key
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           script_stop: true
+          debug: true
           script: |
             # Docker va Docker Compose o'rnatish (agar o'rnatilmagan bo'lsa)
             if ! command -v docker &> /dev/null; then
@@ -155,7 +167,7 @@ jobs:
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          key_path: ~/.ssh/deploy_key
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: "."
           target: "/home/ubuntu/barbershop-bot"
@@ -174,9 +186,10 @@ jobs:
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          key_path: ~/.ssh/deploy_key
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           script_stop: true
+          debug: true
           script: |
             cd /home/ubuntu/barbershop-bot
             
