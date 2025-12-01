@@ -30,15 +30,15 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: 22
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
           script_stop: true
-          debug: true
+          debug: false
           script: |
             set -e
             
-            # Docker va Docker Compose o'rnatish (agar o'rnatilmagan bo'lsa)
+            # Docker va Docker Compose o'rnatish tekshiruvi va o'rnatish
             if ! command -v docker &> /dev/null; then
-              echo "🐳 Docker o'rnatilmoqda..."
+              echo ">> Docker o'rnatilmagan, o'rnatilmoqda..."
               sudo apt-get update -y
               sudo apt-get install -y ca-certificates curl gnupg lsb-release
               sudo install -m 0755 -d /etc/apt/keyrings
@@ -50,13 +50,19 @@ jobs:
               sudo systemctl start docker
               sudo systemctl enable docker
               sudo usermod -aG docker ubuntu
+              echo ">> Docker muvaffaqiyatli o'rnatildi"
+            else
+              echo ">> Docker allaqachon o'rnatilgan"
             fi
             
-            if ! command -v docker-compose &> /dev/null; then
-              echo "🐳 Docker Compose o'rnatilmoqda..."
+            if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+              echo ">> Docker Compose o'rnatilmagan, o'rnatilmoqda..."
               sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
               sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+              echo ">> Docker Compose muvaffaqiyatli o'rnatildi"
+            else
+              echo ">> Docker Compose allaqachon o'rnatilgan"
             fi
             
             # App directory yaratish
@@ -64,22 +70,25 @@ jobs:
             mkdir -p $APP_DIR
             cd $APP_DIR
             
-            # Eski container'larni to'xtatish
+            # Eski container'larni to'xtatish (5 soniya kutib)
+            echo ">> Waiting 5 seconds before stopping old environment..."
+            sleep 5
+            
             if [ -f docker-compose.yml ]; then
-              echo "🛑 Eski container'larni to'xtatilmoqda..."
+              echo ">> Stopping old containers..."
               docker-compose down || true
             fi
             
             # GitHub'dan kodlarni yuklash
-            echo "📥 Kodlar yuklanmoqda..."
+            echo ">> Cloning/pulling code from repository..."
             if [ -d ".git" ]; then
-              git pull origin main || git fetch && git reset --hard origin/main
+              git pull origin main || (git fetch && git reset --hard origin/main)
             else
               git clone https://github.com/${{ github.repository }}.git .
             fi
             
             # .env faylini yaratish
-            echo "📝 .env fayli yaratilmoqda..."
+            echo ">> Creating .env file..."
             cat > .env << EOF
             # Telegram Bot Configuration
             BOT_TOKEN=${{ secrets.BOT_TOKEN }}
@@ -106,35 +115,71 @@ jobs:
             NODE_ENV=production
             EOF
             
+            # Eski imagelarni tozalash
+            echo ">> Cleaning up old images..."
+            docker image prune -f || true
+            
             # Docker Compose orqali build va start
-            echo "🐳 Docker image build qilinmoqda..."
+            echo ">> Building Docker images..."
             docker-compose build --no-cache
             
-            echo "🚀 Container'lar ishga tushirilmoqda..."
+            echo ">> Starting containers..."
             docker-compose up -d
             
             # Database container'ning tayyor bo'lishini kutish
-            echo "⏳ Database container'ning tayyor bo'lishini kutmoqda..."
+            echo ">> Waiting for database to be ready..."
             timeout=60
             counter=0
             while ! docker-compose exec -T db pg_isready -U ${{ vars.DB_USERNAME }} > /dev/null 2>&1; do
               if [ $counter -ge $timeout ]; then
-                echo "❌ Database container tayyor bo'lmadi!"
+                echo ">> Database container tayyor bo'lmadi!"
                 exit 1
               fi
               echo "Database kutilyapti... ($counter/$timeout)"
               sleep 2
               counter=$((counter + 2))
             done
-            echo "✅ Database container tayyor!"
+            echo ">> Database container tayyor!"
             
-            # Container'lar ishlayotganini tekshirish
-            echo "📊 Container'lar holati:"
+            # Container'lar holati
+            echo ">> Container status:"
             docker-compose ps
             
-            # Log'larni ko'rsatish
-            echo "📋 Application logs:"
-            docker-compose logs --tail=50 app || true
-            
-            echo "✅ Deployment muvaffaqiyatli yakunlandi!"
+            echo ">> Deployment completed successfully!"
 
+      - name: 🏥 Health Check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/ubuntu/barbershop-bot
+            
+            echo ">> Final health check..."
+            sleep 10
+            
+            # Qaysi port ishlayotganini aniqlash
+            ACTIVE_PORT=${{ vars.PORT || 3000 }}
+            
+            echo ">> Checking health on port $ACTIVE_PORT..."
+            for i in {1..10}; do
+              if curl -f http://localhost:$ACTIVE_PORT/api > /dev/null 2>&1; then
+                echo ""
+                echo "✓ Health check muvaffaqiyatli!"
+                echo ">> Application is running on port $ACTIVE_PORT"
+                exit 0
+              fi
+              echo "Kutilmoqda... ($i/10)"
+              sleep 3
+            done
+            
+            echo "✗ Health check muvaffaqiyatsiz!"
+            echo ">> Container loglari:"
+            docker-compose logs --tail=100 app || true
+            echo ">> Container holati:"
+            docker-compose ps -a
+            exit 1
