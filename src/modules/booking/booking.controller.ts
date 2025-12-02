@@ -22,6 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { BookingStatisticsDto } from './dto/booking-statistics.dto';
 import { BookingStatus } from '../../common/enums/booking-status.enum';
 import { AuthGuard, RoleGuard } from 'src/common/guards';
 import { Role } from 'src/common/decorators';
@@ -97,6 +98,26 @@ export class BookingController {
   @ApiOperation({ summary: 'Barcha kutayotgan bronlarni olish (Faqat admin uchun)' })
   getPendingBookings() {
     return this.bookingService.findPendingBookings();
+  }
+
+  @Post('admin/statistics')
+  @UseGuards(AuthGuard, RoleGuard)
+  @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Admin uchun booking statistikasini olish (vaqt oralig\'i bo\'yicha)',
+  })
+  @ApiBody({ type: BookingStatisticsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking statistikasi muvaffaqiyatli qaytarildi',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Noto\'g\'ri so\'rov (startDate > endDate)',
+  })
+  getStatistics(@Body() dto: BookingStatisticsDto) {
+    return this.bookingService.getStatistics(dto);
   }
 
   @Get(':id')

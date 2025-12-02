@@ -15,10 +15,10 @@ export class Booking {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ nullable: true })
   client_id: number;
 
-  @Column()
+  @Column({ nullable: true })
   barber_id: number;
 
   @Column()
@@ -43,11 +43,15 @@ export class Booking {
   @Column({ default: false })
   notification_sent: boolean; // 30 daqiqa oldin ogohlantirish yuborilganligi
 
-  @ManyToOne(() => User, (user) => user.clientBookings)
+  @ManyToOne(() => User, (user) => user.clientBookings, {
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'client_id' })
   client: User;
 
-  @ManyToOne(() => User, (user) => user.barberBookings)
+  @ManyToOne(() => User, (user) => user.barberBookings, {
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'barber_id' })
   barber: User;
 

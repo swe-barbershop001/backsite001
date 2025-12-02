@@ -5,9 +5,10 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, IsNull } from 'typeorm';
+import { Repository, In, Not, IsNull, Between } from 'typeorm';
 import { Booking } from './entities/booking.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { BookingStatisticsDto } from './dto/booking-statistics.dto';
 import { BookingStatus } from '../../common/enums/booking-status.enum';
 import { UserService } from '../user/user.service';
 import { UserRole } from '../../common/enums/user.enum';
@@ -652,45 +653,8 @@ Bu booking admin tomonidan bekor qilindi.
       throw new BadRequestException(`Bunday ID bilan bron topilmadi: ${id}`);
     }
 
-    if (
-      status === BookingStatus.REJECTED ||
-      status === BookingStatus.COMPLETED
-    ) {
-      /**
-       * tg_id va tg_username yo'q clientlarni o'chirib tashlash
-       * Faqat barcha booking'lari COMPLETED yoki REJECTED bo'lsa o'chirish mumkin
-       */
-      const client = booking.client;
-      const foundClient = await this.userRepository.findOne({
-        where: { id: client.id },
-      });
-
-      if (
-        foundClient &&
-        !foundClient.tg_id &&
-        !foundClient.tg_username &&
-        foundClient.role === UserRole.CLIENT
-      ) {
-        // Client'ning barcha booking'larini tekshirish
-        const allClientBookings = await this.bookingRepository.find({
-          where: { client_id: foundClient.id },
-        });
-
-        // Faqat barcha booking'lari COMPLETED yoki REJECTED bo'lsa o'chirish mumkin
-        const allCompletedOrRejected = allClientBookings.every(
-          (b) =>
-            b.status === BookingStatus.COMPLETED ||
-            b.status === BookingStatus.REJECTED,
-        );
-
-        if (allCompletedOrRejected && allClientBookings.length > 0) {
-          // Avval barcha booking'larni o'chirish
-          await this.bookingRepository.remove(allClientBookings);
-          // Keyin client'ni o'chirish
-          await this.userRepository.remove(foundClient);
-        }
-      }
-    }
+    // User o'chirilganda booking'lar o'chib ketmasligi uchun
+    // booking'lar saqlanib qoladi, faqat client_id va barber_id null bo'ladi
 
     // Status'ni yangilash
     await this.bookingRepository.update(id, { status });
@@ -724,5 +688,138 @@ Bu booking admin tomonidan bekor qilindi.
     if (result.affected === 0) {
       throw new BadRequestException(`ID ${id} bilan bron topilmadi`);
     }
+  }
+
+  async getStatistics(dto: BookingStatisticsDto) {
+    const { startDate, endDate } = dto;
+
+    // Sana validatsiyasi
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'startDate endDate dan katta bo\'lishi mumkin emas',
+      );
+    }
+
+    // Vaqt oralig'idagi barcha booking'larni olish
+    const filteredBookings = await this.bookingRepository.find({
+      where: {
+        date: Between(startDate, endDate),
+      },
+      relations: ['client', 'barber', 'service'],
+    });
+
+    // Jami booking'lar soni
+    const totalBookings = filteredBookings.length;
+
+    // Status bo'yicha booking'lar
+    const bookingsByStatus = {
+      pending: filteredBookings.filter(
+        (b) => b.status === BookingStatus.PENDING,
+      ).length,
+      approved: filteredBookings.filter(
+        (b) => b.status === BookingStatus.APPROVED,
+      ).length,
+      rejected: filteredBookings.filter(
+        (b) => b.status === BookingStatus.REJECTED,
+      ).length,
+      cancelled: filteredBookings.filter(
+        (b) => b.status === BookingStatus.CANCELLED,
+      ).length,
+      completed: filteredBookings.filter(
+        (b) => b.status === BookingStatus.COMPLETED,
+      ).length,
+    };
+
+    // Barberlar bo'yicha statistika
+    const barberStatsMap = new Map<
+      number,
+      {
+        barber: User;
+        bookings: Booking[];
+        totalBookings: number;
+        completedBookings: Booking[];
+        totalRevenue: number;
+      }
+    >();
+
+    filteredBookings.forEach((booking) => {
+      if (!booking.barber) return;
+
+      const barberId = booking.barber_id;
+      const existing = barberStatsMap.get(barberId);
+
+      if (existing) {
+        existing.bookings.push(booking);
+        existing.totalBookings++;
+        if (booking.status === BookingStatus.COMPLETED) {
+          existing.completedBookings.push(booking);
+          existing.totalRevenue += Number(booking.service?.price || 0);
+        }
+      } else {
+        barberStatsMap.set(barberId, {
+          barber: booking.barber,
+          bookings: [booking],
+          totalBookings: 1,
+          completedBookings:
+            booking.status === BookingStatus.COMPLETED ? [booking] : [],
+          totalRevenue:
+            booking.status === BookingStatus.COMPLETED
+              ? Number(booking.service?.price || 0)
+              : 0,
+        });
+      }
+    });
+
+    // Barberlar statistikasini formatlash
+    const barberStatistics = Array.from(barberStatsMap.values())
+      .map((stat) => ({
+        barber: {
+          id: stat.barber.id,
+          name: stat.barber.name,
+          phone_number: stat.barber.phone_number,
+          tg_username: stat.barber.tg_username,
+        },
+        total_bookings: stat.totalBookings,
+        completed_bookings: stat.completedBookings.length,
+        total_revenue: stat.totalRevenue,
+        bookings: stat.bookings.map((b) => ({
+          id: b.id,
+          client: {
+            id: b.client?.id,
+            name: b.client?.name,
+            phone_number: b.client?.phone_number,
+          },
+          service: {
+            id: b.service?.id,
+            name: b.service?.name,
+            price: Number(b.service?.price || 0),
+            duration: Number(b.service?.duration || 0),
+          },
+          date: b.date,
+          time: b.time,
+          status: b.status,
+          comment: b.comment,
+          created_at: b.created_at,
+        })),
+      }))
+      .sort((a, b) => b.total_bookings - a.total_bookings);
+
+    // Jami daromad (barcha completed booking'lar)
+    const totalRevenue = filteredBookings
+      .filter((b) => b.status === BookingStatus.COMPLETED)
+      .reduce((sum, b) => sum + Number(b.service?.price || 0), 0);
+
+    return {
+      period: {
+        start_date: startDate,
+        end_date: endDate,
+      },
+      summary: {
+        total_bookings: totalBookings,
+        bookings_by_status: bookingsByStatus,
+        total_revenue: totalRevenue,
+      },
+      barber_statistics: barberStatistics,
+    };
   }
 }
