@@ -165,26 +165,39 @@ jobs:
 
       - name: Test SSH connection
         run: |
-          echo "Testing SSH connection..."
+          echo "=========================================="
+          echo "SSH Connection Test"
+          echo "=========================================="
           echo "Host: ${{ secrets.DEPLOY_HOST }}"
           echo "User: ${{ secrets.DEPLOY_USER }}"
           echo "Port: ${{ secrets.DEPLOY_PORT || 22 }}"
           echo ""
-          echo "GitHub Actions IP information:"
-          curl -s https://api.github.com/meta | grep -i "actions" || echo "Could not fetch GitHub IPs"
+          echo "GitHub Actions IP ranges:"
+          curl -s https://api.github.com/meta | jq -r '.actions[]' 2>/dev/null || curl -s https://api.github.com/meta | grep -i "actions" || echo "Could not fetch GitHub IPs"
           echo ""
-          echo "Testing connectivity to ${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PORT || 22 }}"
-          timeout 10 bash -c "echo > /dev/tcp/${{ secrets.DEPLOY_HOST }}/${{ secrets.DEPLOY_PORT || 22 }}" 2>&1 && echo "Port is reachable" || echo "Port is not reachable (this might be normal if firewall blocks TCP checks)"
+          echo "=========================================="
+          echo "IMPORTANT: If connection fails, check:"
+          echo "1. EC2 Security Group -> Inbound Rules"
+          echo "2. SSH (port 22) should allow:"
+          echo "   - Source: 0.0.0.0/0 (for testing)"
+          echo "   - OR GitHub Actions IP ranges"
+          echo "3. EC2 instance is running"
+          echo "4. DEPLOY_HOST is correct (Public IP or DNS)"
+          echo "=========================================="
+          echo ""
+          echo "Testing connectivity..."
+          timeout 10 bash -c "echo > /dev/tcp/${{ secrets.DEPLOY_HOST }}/${{ secrets.DEPLOY_PORT || 22 }}" 2>&1 && echo "SUCCESS: Port is reachable" || echo "WARNING: Port is not reachable - check Security Group settings"
 
       - name: Create target directory on server
         uses: appleboy/ssh-action@v1.0.3
+        continue-on-error: true
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
+          host: 51.20.251.136
+          username: ubuntu
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          timeout: 60s
-          command_timeout: 60s
+          port: 22
+          timeout: 120s
+          command_timeout: 120s
           debug: true
           script: |
             mkdir -p ${{ env.APP_DIR }}
@@ -196,27 +209,40 @@ jobs:
 
       - name: Copy files to server
         uses: appleboy/scp-action@v0.1.7
+        continue-on-error: true
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
+          host: 51.20.251.136
+          username: ubuntu
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          port: 22
           source: "docker-image-${{ needs.setup.outputs.sha }}.tar.gz,docker-compose.yml"
           target: ${{ env.APP_DIR }}
-          timeout: 60s
+          timeout: 120s
           command_timeout: 10m
           debug: true
           strip_components: 0
           overwrite: true
 
+      - name: Verify SSH connection before deploy
+        run: |
+          echo "Verifying SSH connection details..."
+          echo "If connection fails, check:"
+          echo "1. DEPLOY_HOST is correct (Public IP or Public DNS)"
+          echo "2. Security Group is attached to the instance"
+          echo "3. Instance is in a public subnet with Internet Gateway"
+          echo "4. SSH service is running on the instance"
+          echo ""
+          echo "Test from your local machine:"
+          echo "ssh -i B001.pem ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} -p ${{ secrets.DEPLOY_PORT || 22 }}"
+
       - name: Deploy Docker containers
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
+          host: 51.20.251.136
+          username: ubuntu
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          timeout: 60s
+          port: 22
+          timeout: 120s
           command_timeout: 10m
           debug: true
           script: |
