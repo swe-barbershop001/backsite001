@@ -168,182 +168,21 @@ jobs:
           name: docker-image-${{ needs.setup.outputs.sha }}
           path: ./
 
-      - name: 🔐 Setup SSH key and test connection
-        run: |
-          set -e
-          
-          # Display connection info (without exposing secrets)
-          echo "🔍 SSH Connection Configuration:"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          DEPLOY_HOST="${{ secrets.DEPLOY_HOST }}"
-          DEPLOY_USER="${{ secrets.DEPLOY_USER }}"
-          DEPLOY_PORT="${{ secrets.DEPLOY_PORT || 22 }}"
-          
-          echo "📍 Host: $DEPLOY_HOST"
-          echo "👤 User: $DEPLOY_USER"
-          echo "🔌 Port: $DEPLOY_PORT"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
-          # Setup SSH directory
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          
-          # Save SSH key
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          
-          # Verify SSH key format
-          echo ""
-          echo "🔑 Verifying SSH key format..."
-          if grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/deploy_key; then
-            KEY_TYPE=$(grep -o "BEGIN [A-Z ]*PRIVATE KEY" ~/.ssh/deploy_key | head -1)
-            echo "✅ SSH key format detected: $KEY_TYPE"
-            KEY_LINES=$(wc -l < ~/.ssh/deploy_key)
-            echo "📏 Key length: $KEY_LINES lines"
-          else
-            echo "❌ ERROR: SSH key format is invalid!"
-            echo "Expected: -----BEGIN ... PRIVATE KEY-----"
-            echo "First 50 chars of key:"
-            head -c 50 ~/.ssh/deploy_key
-            echo ""
-            exit 1
-          fi
-          
-          # Test host connectivity
-          echo ""
-          echo "🌐 Testing host connectivity..."
-          if timeout 10 bash -c "echo > /dev/tcp/$DEPLOY_HOST/$DEPLOY_PORT" 2>/dev/null; then
-            echo "✅ Host $DEPLOY_HOST:$DEPLOY_PORT is reachable"
-          else
-            echo "⚠️  WARNING: Cannot reach $DEPLOY_HOST:$DEPLOY_PORT"
-            echo "   This might be normal if firewall blocks TCP checks"
-          fi
-          
-          # Add host to known_hosts
-          echo ""
-          echo "🔐 Adding host to known_hosts..."
-          ssh-keyscan -p $DEPLOY_PORT -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>&1 || {
-            echo "⚠️  Warning: ssh-keyscan failed, but continuing..."
-          }
-          
-          # Test SSH connection with retry and detailed error messages
-          echo ""
-          echo "🔍 Testing SSH connection..."
-          MAX_RETRIES=5
-          RETRY_COUNT=0
-          CONNECTED=false
-          
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🔄 Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            
-            # Try SSH connection with verbose output
-            echo "🔌 Attempting SSH connection..."
-            echo "Command: ssh -i ~/.ssh/deploy_key -p $DEPLOY_PORT $DEPLOY_USER@$DEPLOY_HOST"
-            
-            # Check key permissions
-            KEY_PERM=$(stat -c "%a" ~/.ssh/deploy_key 2>/dev/null || stat -f "%OLp" ~/.ssh/deploy_key 2>/dev/null || echo "unknown")
-            echo "🔐 Key permissions: $KEY_PERM (should be 600)"
-            
-            # Try SSH connection with full verbose output
-            SSH_OUTPUT=$(ssh -vvv -i ~/.ssh/deploy_key \
-                   -o StrictHostKeyChecking=no \
-                   -o UserKnownHostsFile=~/.ssh/known_hosts \
-                   -o ConnectTimeout=30 \
-                   -o ServerAliveInterval=60 \
-                   -o ServerAliveCountMax=3 \
-                   -p $DEPLOY_PORT \
-                   $DEPLOY_USER@$DEPLOY_HOST \
-                   "echo 'SSH connection successful!'" 2>&1)
-            
-            SSH_EXIT_CODE=$?
-            
-            if [ $SSH_EXIT_CODE -eq 0 ]; then
-              CONNECTED=true
-              echo "✅ SSH connection successful!"
-              echo "$SSH_OUTPUT" | tail -10
-              break
-            else
-              echo "❌ SSH connection failed (exit code: $SSH_EXIT_CODE)"
-              echo ""
-              echo "📋 Full SSH verbose output:"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "$SSH_OUTPUT"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo ""
-              echo "🔍 Key error messages:"
-              echo "$SSH_OUTPUT" | grep -iE "error|failed|denied|timeout|refused|permission|authentication|connection|unreachable|no route" | head -10 || echo "No specific error messages found"
-              
-              # Common error analysis
-              if echo "$SSH_OUTPUT" | grep -qi "Permission denied"; then
-                echo ""
-                echo "⚠️  PERMISSION DENIED - Possible causes:"
-                echo "   1. Wrong SSH key (not matching EC2 key pair)"
-                echo "   2. Wrong username (should be 'ubuntu' for Ubuntu, 'ec2-user' for Amazon Linux)"
-                echo "   3. SSH key format issue"
-              fi
-              
-              if echo "$SSH_OUTPUT" | grep -qi "Connection refused\|Connection timed out"; then
-                echo ""
-                echo "⚠️  CONNECTION REFUSED/TIMEOUT - Possible causes:"
-                echo "   1. EC2 instance is not running"
-                echo "   2. Security Group doesn't allow SSH (port $DEPLOY_PORT)"
-                echo "   3. Wrong host/IP address"
-                echo "   4. Firewall blocking connection"
-              fi
-              
-              if echo "$SSH_OUTPUT" | grep -qi "Host key verification failed"; then
-                echo ""
-                echo "⚠️  HOST KEY VERIFICATION FAILED - This should be handled by StrictHostKeyChecking=no"
-              fi
-              
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo ""
-                echo "⏳ Waiting 5 seconds before retry..."
-                sleep 5
-              fi
-            fi
-          done
-          
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
-          if [ "$CONNECTED" = false ]; then
-            echo "❌ SSH connection failed after $MAX_RETRIES attempts"
-            echo ""
-            echo "📋 Troubleshooting Checklist:"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "1. ✅ EC2 instance is running"
-            echo "   Check: AWS Console → EC2 → Instances"
-            echo ""
-            echo "2. ✅ Security Group allows SSH"
-            echo "   Port: $DEPLOY_PORT"
-            echo "   Source: 0.0.0.0/0 (or GitHub Actions IP range)"
-            echo "   Check: EC2 → Security Groups → Inbound Rules"
-            echo ""
-            echo "3. ✅ DEPLOY_HOST is correct"
-            echo "   Current: $DEPLOY_HOST"
-            echo "   Should be: EC2 Public IP or Public DNS"
-            echo ""
-            echo "4. ✅ DEPLOY_USER is correct"
-            echo "   Current: $DEPLOY_USER"
-            echo "   Ubuntu: ubuntu"
-            echo "   Amazon Linux: ec2-user"
-            echo ""
-            echo "5. ✅ SSH key is correct"
-            echo "   Format: -----BEGIN ... PRIVATE KEY-----"
-            echo "   Should match the key pair used when creating EC2 instance"
-            echo ""
-            echo "6. ✅ Test connection manually:"
-            echo "   ssh -i your-key.pem $DEPLOY_USER@$DEPLOY_HOST -p $DEPLOY_PORT"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            exit 1
-          fi
+      - name: 🚀 Create target directory on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          timeout: 30s
+          command_timeout: 30s
+          script: |
+            mkdir -p ${{ env.APP_DIR }}
+            cd ${{ env.APP_DIR }}
+            echo "✅ Directory created: ${{ env.APP_DIR }}"
 
-      - name: 🚀 Deploy files to server
+      - name: 📤 Copy files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -352,12 +191,11 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: "docker-image-${{ needs.setup.outputs.sha }}.tar.gz,docker-compose.yml"
           target: ${{ env.APP_DIR }}
-          timeout: 600s
-          command_timeout: 600s
+          timeout: 30s
+          command_timeout: 10m
           debug: true
           strip_components: 0
           overwrite: true
-          use_insecure_cipher: false
 
       - name: 🐳 Deploy Docker containers
         uses: appleboy/ssh-action@v1.0.3
@@ -366,120 +204,65 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
-          timeout: 900s
-          command_timeout: 900s
-          debug: true
-          use_insecure_cipher: false
+          timeout: 30s
+          command_timeout: 10m
           script: |
-            set -e
+            cd ${{ env.APP_DIR }}
             
-            APP_DIR="${{ env.APP_DIR }}"
-            IMAGE_TAG="${{ env.DOCKER_IMAGE_NAME }}:${{ needs.setup.outputs.sha }}"
-            IMAGE_FILE="docker-image-${{ needs.setup.outputs.sha }}.tar.gz"
+            # Verify files
+            echo "📋 Verifying files..."
+            ls -l || echo "Directory listing failed"
+            ls -l docker-compose.yml || echo "docker-compose.yml not found"
+            ls -l docker-image-*.tar.gz || echo "Docker image file not found"
             
-            echo "🚀 Starting deployment..."
-            echo "📁 App directory: $APP_DIR"
-            echo "🐳 Image tag: $IMAGE_TAG"
-            echo "📦 Image file: $IMAGE_FILE"
-            
-            # Create app directory if it doesn't exist
-            mkdir -p $APP_DIR
-            cd $APP_DIR
-            echo "✅ Changed to directory: $(pwd)"
-            
-            # Ensure Docker and Docker Compose are installed
-            if ! command -v docker &> /dev/null; then
-              echo ">> Docker o'rnatilmagan, o'rnatilmoqda..."
-              sudo apt-get update -y
-              sudo apt-get install -y ca-certificates curl gnupg lsb-release
-              sudo install -m 0755 -d /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-              sudo chmod a+r /etc/apt/keyrings/docker.gpg
-              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-              sudo apt-get update -y
-              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-              sudo systemctl start docker
-              sudo systemctl enable docker
-              sudo usermod -aG docker $USER
-              echo ">> Docker muvaffaqiyatli o'rnatildi"
-            else
-              echo ">> Docker allaqachon o'rnatilgan"
-            fi
-            
-            if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-              echo ">> Docker Compose o'rnatilmagan, o'rnatilmoqda..."
-              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
-              sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-              echo ">> Docker Compose muvaffaqiyatli o'rnatildi"
-            else
-              echo ">> Docker Compose allaqachon o'rnatilgan"
-            fi
-            
-            # Load Docker image (use sudo if needed, or newgrp for docker group)
-            echo "📥 Loading Docker image..."
+            # Determine docker command (with or without sudo)
             if groups | grep -q docker; then
               DOCKER_CMD="docker"
               COMPOSE_CMD="docker-compose"
             else
               DOCKER_CMD="sudo docker"
               COMPOSE_CMD="sudo docker-compose"
-              echo "⚠️ Using sudo for docker commands (user not in docker group yet)"
             fi
-            
-            # Check if image file exists
-            if [ ! -f "$IMAGE_FILE" ]; then
-              echo "❌ Image file not found: $IMAGE_FILE"
-              echo "📂 Current directory contents:"
-              ls -la
-              exit 1
-            fi
-            
-            echo "📦 Loading image from $IMAGE_FILE..."
-            gunzip -c $IMAGE_FILE | $DOCKER_CMD load
-            $DOCKER_CMD tag $IMAGE_TAG ${{ env.DOCKER_IMAGE_NAME }}:latest
-            echo "✅ Docker image loaded successfully"
-            echo "📋 Available images:"
-            $DOCKER_CMD images | grep "${{ env.DOCKER_IMAGE_NAME }}" || true
             
             # Stop old containers
             echo "🛑 Stopping old containers..."
-            if [ -f docker-compose.yml ]; then
-              $COMPOSE_CMD down || true
-            fi
+            $COMPOSE_CMD down || echo "docker-compose down failed"
+            
+            # Load Docker image
+            IMAGE_FILE=$(ls docker-image-*.tar.gz | head -1)
+            IMAGE_TAG="${{ env.DOCKER_IMAGE_NAME }}:${{ needs.setup.outputs.sha }}"
+            
+            echo "📥 Loading Docker image: $IMAGE_FILE"
+            gunzip -c $IMAGE_FILE | $DOCKER_CMD load
+            $DOCKER_CMD tag $IMAGE_TAG ${{ env.DOCKER_IMAGE_NAME }}:latest
+            echo "✅ Docker image loaded successfully"
             
             # Create .env file
             echo "📝 Creating .env file..."
-            cat > .env << EOF
-            # Telegram Bot Configuration
-            BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
+            echo "SUPER_ADMIN_USERNAME=${{ vars.SUPER_ADMIN_USERNAME }}" >> .env
+            echo "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" >> .env
+            echo "SUPER_ADMIN_NAME=${{ vars.SUPER_ADMIN_NAME }}" >> .env
+            echo "SUPER_ADMIN_PHONE=${{ vars.SUPER_ADMIN_PHONE }}" >> .env
+            echo "JWT_TOKEN_SECRET=${{ secrets.JWT_TOKEN_SECRET }}" >> .env
+            echo "JWT_TOKEN_EXPIRATION=${{ vars.JWT_TOKEN_EXPIRATION }}" >> .env
+            echo "DB_HOST=db" >> .env
+            echo "DB_PORT=${{ vars.DB_PORT }}" >> .env
+            echo "DB_USERNAME=${{ vars.DB_USERNAME }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "DB_DATABASE=${{ vars.DB_DATABASE }}" >> .env
+            echo "PORT=${{ vars.PORT }}" >> .env
+            echo "NODE_ENV=production" >> .env
             
-            # SUPER_ADMIN Configuration
-            SUPER_ADMIN_USERNAME=${{ vars.SUPER_ADMIN_USERNAME }}
-            SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}
-            SUPER_ADMIN_NAME=${{ vars.SUPER_ADMIN_NAME }}
-            SUPER_ADMIN_PHONE=${{ vars.SUPER_ADMIN_PHONE }}
+            # Fix line endings (Windows compatibility)
+            sudo apt-get update && sudo apt-get install -y dos2unix || echo "dos2unix installation failed"
+            dos2unix .env || echo "dos2unix conversion failed"
             
-            # Token
-            JWT_TOKEN_SECRET=${{ secrets.JWT_TOKEN_SECRET }}
-            JWT_TOKEN_EXPIRATION=${{ vars.JWT_TOKEN_EXPIRATION }}
-            
-            # Database Configuration (Docker Compose service nomi)
-            DB_HOST=db
-            DB_PORT=${{ vars.DB_PORT }}
-            DB_USERNAME=${{ vars.DB_USERNAME }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_DATABASE=${{ vars.DB_DATABASE }}
-            
-            # Application Port
-            PORT=${{ vars.PORT }}
-            NODE_ENV=production
-            EOF
+            cat .env
             
             # Update docker-compose.yml to use image instead of build
-            echo "🔧 Updating docker-compose.yml to use pre-built image..."
+            echo "🔧 Updating docker-compose.yml..."
             IMAGE_NAME="${{ env.DOCKER_IMAGE_NAME }}:latest"
-            # Use awk to replace build section with image (more reliable than sed for multi-line)
             awk -v img="$IMAGE_NAME" '
             /^  app:/ { in_app=1; print; next }
             in_app && /^    build:/ { 
@@ -491,38 +274,33 @@ jobs:
             skip_build && /^    [a-z]/ { skip_build=0; in_app=0 }
             { print }
             ' docker-compose.yml > docker-compose.yml.tmp && mv docker-compose.yml.tmp docker-compose.yml
-            echo "✅ docker-compose.yml updated to use image: $IMAGE_NAME"
+            
+            # Verify docker-compose config
+            echo "🔍 Verifying docker-compose configuration..."
+            $COMPOSE_CMD config || echo "docker-compose config failed"
             
             # Clean up old images
             echo "🧹 Cleaning up old images..."
-            $DOCKER_CMD image prune -f || true
+            $DOCKER_CMD system prune -f --volumes || echo "Docker prune failed"
             
-            # Start containers
-            echo "🚀 Starting containers..."
+            # Build and start containers
+            echo "🚀 Building and starting containers..."
+            $COMPOSE_CMD build || echo "docker-compose build failed"
             $COMPOSE_CMD up -d
             
-            # Wait for database to be ready
-            echo "⏳ Waiting for database to be ready..."
-            timeout=60
-            counter=0
-            while ! $COMPOSE_CMD exec -T db pg_isready -U ${{ vars.DB_USERNAME }} > /dev/null 2>&1; do
-              if [ $counter -ge $timeout ]; then
-                echo "❌ Database container tayyor bo'lmadi!"
-                exit 1
-              fi
-              echo "Database kutilyapti... ($counter/$timeout)"
-              sleep 2
-              counter=$((counter + 2))
-            done
-            echo "✅ Database container tayyor!"
+            # Wait a bit for containers to start
+            sleep 10
             
             # Show container status
             echo "📊 Container status:"
-            $COMPOSE_CMD ps
+            $DOCKER_CMD ps -a
             
-            # Show database volume info
-            echo "💾 Database volume info:"
-            $DOCKER_CMD volume inspect postgres_data 2>/dev/null || echo "Volume info not available"
+            # Show logs
+            echo "📋 Application logs:"
+            $DOCKER_CMD logs $($DOCKER_CMD ps -q --filter "name=barbershop-bot") || echo "No app container logs"
+            
+            echo "📋 Database logs:"
+            $DOCKER_CMD logs $($DOCKER_CMD ps -q --filter "name=barbershop-db") || echo "No db container logs"
             
             echo "✅ Deployment completed successfully!"
 
