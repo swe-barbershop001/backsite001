@@ -3,18 +3,18 @@ import { ApiProperty } from '@nestjs/swagger';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
 
 export class CreateBookingDto {
-  @ApiProperty({ description: 'Client phone number', example: '+998901234567' })
+  @ApiProperty({ description: 'Mijoz telefon raqami', example: '+998901234567' })
   @IsString()
   @IsNotEmpty()
   phone_number: string;
 
-  @ApiProperty({ description: 'Barber ID', example: 1 })
+  @ApiProperty({ description: 'Sartarosh ID', example: 1 })
   @IsNumber()
   @IsNotEmpty()
   barber_id: number;
 
   @ApiProperty({ 
-    description: 'Service IDs array (bitta yoki bir nechta servis)', 
+    description: 'Xizmat ID lar massivi (bitta yoki bir nechta xizmat)', 
     example: [1],
     type: [Number]
   })
@@ -24,17 +24,17 @@ export class CreateBookingDto {
   @IsNotEmpty()
   service_ids: number[];
 
-  @ApiProperty({ description: 'Booking date (yyyy-mm-dd)', example: '2025-01-25' })
+  @ApiProperty({ description: 'Bron sanasi (yyyy-mm-dd)', example: '2025-01-25' })
   @IsString()
   @IsNotEmpty()
   date: string; // yyyy-mm-dd
 
-  @ApiProperty({ description: 'Booking time (HH:mm)', example: '14:00' })
+  @ApiProperty({ description: 'Bron vaqti (HH:mm)', example: '14:00' })
   @IsString()
   @IsNotEmpty()
   time: string; // HH:mm
 
-  @ApiProperty({ description: 'Client name (optional)', example: 'John Doe', required: false })
+  @ApiProperty({ description: 'Mijoz ismi (ixtiyoriy)', example: 'John Doe', required: false })
   @IsString()
   client_name?: string; // Mijoz ismi
 

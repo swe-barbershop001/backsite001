@@ -27,13 +27,13 @@ export class AuthService {
     private readonly userService: UserService,
   ) {}
 
-  async register(registerDto: RegisterDto) {
+  async register(registerDto: RegisterDto, currentUser: TokenPayload) {
     const { name, tg_username, phone_number, password, role } = registerDto;
-    
+
     // Faqat admin va super_admin API orqali register qilishi mumkin
-    if (role !== UserRole.ADMIN && role !== UserRole.SUPER_ADMIN) {
+    if (role !== UserRole.ADMIN) {
       throw new BadRequestException(
-        'API orqali faqat admin yoki super_admin roli bilan foydalanuvchi yaratish mumkin',
+        'API orqali faqat admin roli bilan foydalanuvchi yaratish mumkin',
       );
     }
 
@@ -43,14 +43,19 @@ export class AuthService {
         `Bu tg_username (${tg_username}) bilan foydalanuvchi allaqachon mavjud`,
       );
     }
+
     const hashedPassword = await this.hashPassword(password);
-    const user = await this.userService.create({
-      name,
-      tg_username,
-      phone_number,
-      password: hashedPassword,
-      role,
-    });
+    const user = await this.userService.create(
+      {
+        name,
+        tg_username,
+        phone_number,
+        password: hashedPassword,
+        role,
+      },
+      currentUser,
+    );
+
     const token = await this.generateToken({ id: user.id, role: user.role });
     return { token, user };
   }

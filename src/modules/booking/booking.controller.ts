@@ -10,6 +10,7 @@ import {
   HttpStatus,
   UseGuards,
   Request,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -32,19 +33,22 @@ export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
   @Get('comments')
-  @ApiOperation({ summary: 'Get all bookings with comments (Public)' })
+  @ApiOperation({ summary: 'Barcha izohli bronlarni olish (Ochiq)' })
   @ApiResponse({
     status: 200,
-    description: 'List of bookings with comments and user information',
+    description: 'Izohlar va foydalanuvchi ma\'lumotlari bilan bronlar ro\'yxati',
   })
   getBookingsWithComments() {
     return this.bookingService.findBookingsWithComments();
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create booking(s) - single or multiple services in one request (Public)' })
-  @ApiResponse({ status: 201, description: 'Booking(s) successfully created' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiOperation({
+    summary:
+      'Bron yaratish - bitta yoki bir nechta xizmatni bitta so\'rovda (Ochiq)',
+  })
+  @ApiResponse({ status: 201, description: 'Bron(lar) muvaffaqiyatli yaratildi' })
+  @ApiResponse({ status: 400, description: 'Noto\'g\'ri so\'rov' })
   create(@Body() createBookingDto: CreateBookingDto) {
     return this.bookingService.create(createBookingDto);
   }
@@ -52,8 +56,8 @@ export class BookingController {
   @Get()
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all bookings' })
-  @ApiResponse({ status: 200, description: 'List of all bookings' })
+  @ApiOperation({ summary: 'Barcha bronlarni olish' })
+  @ApiResponse({ status: 200, description: 'Barcha bronlar ro\'yxati' })
   findAll() {
     return this.bookingService.findAll();
   }
@@ -61,9 +65,9 @@ export class BookingController {
   @Get('client/:clientId')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all bookings for a specific client' })
-  @ApiParam({ name: 'clientId', type: 'number', description: 'Client ID' })
-  @ApiResponse({ status: 200, description: 'List of bookings for the client' })
+  @ApiOperation({ summary: 'Muayyan mijoz uchun barcha bronlarni olish' })
+  @ApiParam({ name: 'clientId', type: 'number', description: 'Mijoz ID' })
+  @ApiResponse({ status: 200, description: 'Mijoz uchun bronlar ro\'yxati' })
   findByClient(@Param('clientId') clientId: string) {
     return this.bookingService.findByClientId(+clientId);
   }
@@ -71,8 +75,8 @@ export class BookingController {
   @Get('my')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user bookings' })
-  @ApiResponse({ status: 200, description: 'List of current user bookings' })
+  @ApiOperation({ summary: 'Joriy foydalanuvchi bronlarini olish' })
+  @ApiResponse({ status: 200, description: 'Joriy foydalanuvchi bronlari ro\'yxati' })
   getMyBookings(@Request() req: any) {
     const userId = req.user.id;
     return this.bookingService.findByClientId(userId);
@@ -81,9 +85,7 @@ export class BookingController {
   @Get('barber/:barberId')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all bookings for a specific barber' })
-  @ApiParam({ name: 'barberId', type: 'number', description: 'Barber ID' })
-  @ApiResponse({ status: 200, description: 'List of bookings for the barber' })
+  @ApiOperation({ summary: 'Muayyan sartarosh uchun barcha bronlarni olish' })
   findByBarber(@Param('barberId') barberId: string) {
     return this.bookingService.findByBarberId(+barberId);
   }
@@ -92,8 +94,7 @@ export class BookingController {
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all pending bookings (Admin only)' })
-  @ApiResponse({ status: 200, description: 'List of pending bookings' })
+  @ApiOperation({ summary: 'Barcha kutayotgan bronlarni olish (Faqat admin uchun)' })
   getPendingBookings() {
     return this.bookingService.findPendingBookings();
   }
@@ -101,71 +102,58 @@ export class BookingController {
   @Get(':id')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get a booking by ID' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
-  @ApiResponse({ status: 200, description: 'Booking found' })
-  @ApiResponse({ status: 404, description: 'Booking not found' })
-  findOne(@Param('id') id: string) {
+  @ApiOperation({ summary: "Bronni ID'si bo'yicha olish" })
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.bookingService.findOne(+id);
   }
 
-  @Patch(':id/approve')
-  @UseGuards(AuthGuard, RoleGuard)
-  @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a booking (Admin only)' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
-  @ApiResponse({ status: 200, description: 'Booking approved' })
-  @ApiResponse({ status: 404, description: 'Booking not found' })
-  approveBooking(@Param('id') id: string) {
-    return this.bookingService.approve(+id);
-  }
+  // @Patch(':id/approve')
+  // @UseGuards(AuthGuard, RoleGuard)
+  // @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  // @ApiBearerAuth()
+  // @ApiOperation({ summary: 'Approve a booking (Admin only)' })
+  // @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
+  // @ApiResponse({ status: 200, description: 'Booking approved' })
+  // @ApiResponse({ status: 404, description: 'Booking not found' })
+  // approveBooking(@Param('id') id: string) {
+  //   return this.bookingService.approve(+id);
+  // }
 
-  @Patch(':id/reject')
-  @UseGuards(AuthGuard, RoleGuard)
-  @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a booking (Admin only)' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
-  @ApiResponse({ status: 200, description: 'Booking rejected' })
-  @ApiResponse({ status: 404, description: 'Booking not found' })
-  rejectBooking(@Param('id') id: string) {
-    return this.bookingService.reject(+id);
-  }
+  // @Patch(':id/reject')
+  // @UseGuards(AuthGuard, RoleGuard)
+  // @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  // @ApiBearerAuth()
+  // @ApiOperation({ summary: 'Reject a booking (Admin only)' })
+  // @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
+  // @ApiResponse({ status: 200, description: 'Booking rejected' })
+  // @ApiResponse({ status: 404, description: 'Booking not found' })
+  // rejectBooking(@Param('id') id: string) {
+  //   return this.bookingService.reject(+id);
+  // }
 
   @Patch(':id/status')
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update booking status (Admin only)' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        status: {
-          type: 'string',
-          enum: ['pending', 'approved', 'rejected', 'cancelled'],
-          description: 'Booking status',
-        },
-      },
-    },
+  @ApiOperation({
+    summary: 'Bron statuslarini tahrirlash (faqat admin va super_admin uchun)',
   })
-  @ApiResponse({ status: 200, description: 'Booking status updated' })
-  @ApiResponse({ status: 404, description: 'Booking not found' })
-  updateStatus(@Param('id') id: string, @Body('status') status: BookingStatus) {
+  updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('status') status: BookingStatus,
+  ) {
     return this.bookingService.updateStatus(+id, status);
   }
 
   @Delete(':id')
-  @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a booking' })
-  @ApiParam({ name: 'id', type: 'number', description: 'Booking ID' })
-  @ApiResponse({ status: 204, description: 'Booking successfully deleted' })
-  @ApiResponse({ status: 404, description: 'Booking not found' })
-  async remove(@Param('id') id: string) {
+  @ApiOperation({
+    summary: "Bronni o'chirish (faqat admin va super_admin'lar uchun)",
+  })
+  @UseGuards(AuthGuard, RoleGuard)
+  @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async remove(@Param('id', ParseIntPipe) id: number) {
     await this.bookingService.remove(+id);
   }
 }

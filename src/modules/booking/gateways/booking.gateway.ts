@@ -21,7 +21,9 @@ interface AuthenticatedSocket extends Socket {
   },
   namespace: '/bookings',
 })
-export class BookingGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class BookingGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -35,8 +37,10 @@ export class BookingGateway implements OnGatewayConnection, OnGatewayDisconnect 
   async handleConnection(client: AuthenticatedSocket) {
     try {
       // Token'ni query yoki auth header'dan olish
-      const token = client.handshake.auth?.token || client.handshake.query?.token;
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
 
+      console.log('gateways =>', token);
       if (!token) {
         client.disconnect();
         return;
@@ -62,7 +66,9 @@ export class BookingGateway implements OnGatewayConnection, OnGatewayDisconnect 
       client.userRole = user.role;
       this.connectedAdmins.set(user.id, client.id);
 
-      console.log(`[WebSocket] Admin connected: ${user.id} (${user.name || user.phone_number})`);
+      console.log(
+        `[WebSocket] Admin connected: ${user.id} (${user.name || user.phone_number})`,
+      );
     } catch (error) {
       console.error('[WebSocket] Connection error:', error);
       client.disconnect();
@@ -79,7 +85,9 @@ export class BookingGateway implements OnGatewayConnection, OnGatewayDisconnect 
   // Booking yaratilganda barcha admin'larga xabar yuborish
   notifyNewBooking(bookingData: any) {
     this.server.emit('new_booking', bookingData);
-    console.log(`[WebSocket] New booking notification sent to ${this.connectedAdmins.size} admins`);
+    console.log(
+      `[WebSocket] New booking notification sent to ${this.connectedAdmins.size} admins`,
+    );
   }
 
   // Booking status o'zgarganda admin'larga xabar yuborish
@@ -90,4 +98,3 @@ export class BookingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     });
   }
 }
-

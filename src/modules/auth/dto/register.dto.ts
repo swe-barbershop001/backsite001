@@ -5,7 +5,7 @@ import { UserRole } from 'src/common/enums/user.enum';
 export class RegisterDto {
   @ApiProperty({
     type: 'string',
-    description: 'Full name',
+    description: 'To\'liq ism',
     example: 'John Doe',
   })
   @IsString()
@@ -14,7 +14,7 @@ export class RegisterDto {
 
   @ApiProperty({
     type: 'string',
-    description: 'Telegram username',
+    description: 'Telegram foydalanuvchi nomi',
     example: 'john_doe',
   })
   @IsString()
@@ -23,7 +23,7 @@ export class RegisterDto {
 
   @ApiProperty({
     type: 'string',
-    description: 'Phone number',
+    description: 'Telefon raqami',
     example: '+998901234567',
   })
   @IsString()
@@ -32,7 +32,7 @@ export class RegisterDto {
 
   @ApiProperty({
     type: 'string',
-    description: 'Password (minimum 4 characters)',
+    description: 'Parol (kamida 4 belgi)',
     example: 'pass',
   })
   @IsString()
@@ -42,7 +42,7 @@ export class RegisterDto {
 
   @ApiProperty({
     enum: UserRole,
-    description: 'User role - only admin or super_admin allowed',
+    description: 'Foydalanuvchi roli - faqat admin yoki super_admin ruxsat etiladi',
     example: UserRole.ADMIN,
   })
   @IsEnum(UserRole, { message: 'Role faqat admin yoki super_admin bo\'lishi kerak' })

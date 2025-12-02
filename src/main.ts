@@ -18,7 +18,7 @@ async function bootstrap() {
   console.log('[Main] Setting up Swagger documentation...');
   const config = new DocumentBuilder()
     .setTitle('Barbershop Bot API')
-    .setDescription('Barbershop Bot API Documentation')
+    .setDescription('Barbershop Bot API Dokumentatsiyasi')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

@@ -10,11 +10,12 @@ import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { BotModule } from '../bot/bot.module';
 import { BarberServiceModule } from '../barber-service/barber-service.module';
+import { User } from '../user/entities/user.entity';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([Booking]),
+    TypeOrmModule.forFeature([Booking, User]),
     AuthModule,
     UserModule,
     forwardRef(() => BotModule),

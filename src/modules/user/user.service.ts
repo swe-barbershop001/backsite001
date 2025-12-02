@@ -43,16 +43,16 @@ export class UserService {
     }
 
     // Unique tekshiruvlar
-    if (createUserDto.phone_number) {
-      const existingUserByPhone = await this.userRepository.findOne({
-        where: { phone_number: createUserDto.phone_number },
-      });
-      if (existingUserByPhone) {
-        throw new BadRequestException(
-          `Bu telefon raqam (${createUserDto.phone_number}) bilan foydalanuvchi allaqachon mavjud`,
-        );
-      }
-    }
+    // if (createUserDto.phone_number && createUserDto.name) {
+    //   const existingUserByPhone = await this.userRepository.findOne({
+    //     where: { phone_number: createUserDto.phone_number, name: createUserDto.name },
+    //   });
+    //   if (existingUserByPhone) {
+    //     throw new BadRequestException(
+    //       `Bu telefon raqam (${createUserDto.phone_number}) va (${createUserDto}) bilan foydalanuvchi allaqachon mavjud`,
+    //     );
+    //   }
+    // }
 
     if (createUserDto.tg_id) {
       const existingUserByTgId = await this.userRepository.findOne({

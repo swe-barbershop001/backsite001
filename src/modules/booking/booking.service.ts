@@ -15,6 +15,7 @@ import { BotService } from '../bot/bot.service';
 import { BarberServiceService } from '../barber-service/barber-service.service';
 import { InlineKeyboard } from 'grammy';
 import { BookingGateway } from './gateways/booking.gateway';
+import { User } from '../user/entities/user.entity';
 
 @Injectable()
 export class BookingService {
@@ -26,6 +27,7 @@ export class BookingService {
     private botService: BotService,
     private barberServiceService: BarberServiceService,
     private bookingGateway: BookingGateway,
+    @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
 
   async create(
@@ -33,6 +35,16 @@ export class BookingService {
   ): Promise<Booking | Booking[]> {
     const { phone_number, service_ids, client_name, ...bookingData } =
       createBookingDto;
+
+    const existingBarber = await this.userService.findOne(
+      bookingData.barber_id,
+    );
+
+    if (!existingBarber) {
+      throw new BadRequestException(
+        `Bu barber_id (${bookingData.barber_id}) bilan sartarosh topilmadi`,
+      );
+    }
 
     // Service IDs tekshiruvi
     if (!service_ids || service_ids.length === 0) {
@@ -43,9 +55,11 @@ export class BookingService {
 
     // Phone number bo'yicha user topish
     let client = await this.userService.findByPhoneNumber(phone_number);
-    if (client) {
+
+    console.log({ client });
+    if (client?.phone_number == phone_number && client.name == client_name) {
       throw new BadRequestException(
-        `Bu telefon raqam (${phone_number}) bilan foydalanuvchi allaqachon mavjud`,
+        `Bu telefon raqam (${phone_number}) va (${client_name}) bilan foydalanuvchi allaqachon mavjud`,
       );
     } else {
       client = await this.userService.create({
@@ -73,6 +87,8 @@ export class BookingService {
     // Admin'larga xabar yuborish
     if (bookings.length > 0) {
       await this.notifyAdmins(bookings[0], bookings);
+      // Barber'ga xabar yuborish (agar tg_id va tg_username bo'lsa)
+      await this.notifyBarber(bookings[0], bookings);
     }
 
     // Agar bitta servis bo'lsa, bitta booking qaytarish, aks holda array
@@ -242,6 +258,101 @@ ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'
     }
   }
 
+  private async notifyBarber(
+    booking: Booking,
+    allBookings?: Booking[],
+  ): Promise<void> {
+    try {
+      // Booking ma'lumotlarini olish
+      const bookingWithRelations = await this.bookingRepository.findOne({
+        where: { id: booking.id },
+        relations: ['client', 'barber', 'service'],
+      });
+
+      if (!bookingWithRelations) {
+        return;
+      }
+
+      const client = bookingWithRelations.client;
+      const barber = bookingWithRelations.barber;
+
+      // Barber'ning tg_id va tg_username bo'lishini tekshirish
+      if (!barber.tg_id || !barber.tg_username) {
+        return;
+      }
+
+      // Agar bir nechta booking bo'lsa, barcha servislarni olish
+      let services: (typeof bookingWithRelations.service)[] = [
+        bookingWithRelations.service,
+      ];
+      if (allBookings && allBookings.length > 1) {
+        const serviceIds = allBookings.map((b) => b.service_id);
+        const foundServices = await Promise.all(
+          serviceIds.map((id) => this.barberServiceService.findOne(id)),
+        );
+        services = foundServices.filter(
+          (s): s is typeof bookingWithRelations.service => s !== null,
+        );
+      }
+
+      const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
+      const totalDuration = services.reduce(
+        (sum, s) => sum + Number(s.duration),
+        0,
+      );
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const barberMessage = `
+<b>🆕 Yangi bron yaratildi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client.name || client.phone_number}
+${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+💈 <b>Xizmatlar:</b>
+${services
+  .map(
+    (s) =>
+      `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`,
+  )
+  .join('\n')}
+
+💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+📋 <b>Status:</b> 🟡 PENDING
+
+━━━━━━━━━━━━━━━━━━
+`;
+
+      // Barber'ga Telegram orqali xabar yuborish
+      try {
+        await this.botService.sendMessage(barber.tg_id, barberMessage, {
+          parse_mode: 'HTML',
+        });
+      } catch (error: any) {
+        // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
+        if (!error?.description?.includes('chat not found')) {
+          console.error(
+            `Failed to send message to barber ${barber.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify barber:', error);
+    }
+  }
+
   async findAll(): Promise<Booking[]> {
     return await this.bookingRepository.find({
       relations: ['client', 'barber', 'service'],
@@ -346,6 +457,33 @@ ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'
     id: number,
     status: BookingStatus,
   ): Promise<Booking | null> {
+    if (
+      status === BookingStatus.REJECTED ||
+      status === BookingStatus.COMPLETED
+    ) {
+      const booking = await this.findOne(id);
+
+      /**
+       * tg_id va tg_username yo'q clientlarni o'chirib tashlash
+       */
+      if (booking) {
+        const client = booking.client;
+        const foundClient = await this.userRepository.findOne({
+          where: { id: client.id },
+        });
+
+        if (
+          foundClient &&
+          !foundClient.tg_id &&
+          !foundClient.tg_username &&
+          foundClient.role === UserRole.CLIENT
+        ) {
+          await this.userRepository.remove(foundClient);
+        }
+      }else{
+        throw new BadRequestException(`Bunday ID bilan bron topilmadi: ${id}`);
+      }
+    }
     await this.bookingRepository.update(id, { status });
     return await this.findOne(id);
   }
@@ -358,7 +496,7 @@ ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'
   async remove(id: number): Promise<void> {
     const result = await this.bookingRepository.delete(id);
     if (result.affected === 0) {
-      throw new Error(`Booking with ID ${id} not found`);
+      throw new BadRequestException(`ID ${id} bilan bron topilmadi`);
     }
   }
 }
