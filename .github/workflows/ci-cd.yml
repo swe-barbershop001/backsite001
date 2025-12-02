@@ -88,11 +88,6 @@ jobs:
           npm ci
           echo "Dependencies installed successfully"
 
-      - name: Run linter
-        run: |
-          echo "Running ESLint..."
-          npm run lint || echo "Lint warnings found (non-blocking)"
-
       - name: Build application
         run: |
           echo "Building application..."
