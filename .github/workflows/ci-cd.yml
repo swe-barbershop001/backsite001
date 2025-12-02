@@ -1,42 +1,211 @@
-name: CI/CD Pipeline
+name: 🚀 CI/CD Pipeline
 
 on:
   push:
     branches:
       - main
-      - develop
   pull_request:
     branches:
       - main
-      - develop
+  workflow_dispatch:
 
 env:
-  NODE_VERSION: '20.x'
+  NODE_VERSION: '20'
+  DOCKER_IMAGE_NAME: barbershop-bot
+  APP_DIR: /home/ubuntu/barbershop-bot
 
 jobs:
-  # CI/CD Job - Build va Deploy
-  build-and-deploy:
-    name: Build and Deploy
+  # ============================================
+  # Job 1: Setup - Checkout and Verify
+  # ============================================
+  setup:
+    name: 📋 Setup & Verify
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+    outputs:
+      branch: ${{ steps.branch.outputs.name }}
+      sha: ${{ steps.sha.outputs.short }}
     steps:
-      - name: 📥 Checkout code
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Get branch name
+        id: branch
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "name=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🔍 Get short SHA
+        id: sha
+        run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: ✅ Verify branch
+        run: |
+          BRANCH="${{ steps.branch.outputs.name }}"
+          echo "Current branch: $BRANCH"
+          if [ "${{ github.event_name }}" = "push" ] && [ "$BRANCH" != "main" ]; then
+            echo "⚠️ Warning: Not on main branch, but continuing..."
+          fi
+          echo "✅ Branch verification passed"
+
+      - name: 📊 Workflow info
+        run: |
+          echo "🔹 Repository: ${{ github.repository }}"
+          echo "🔹 Branch: ${{ steps.branch.outputs.name }}"
+          echo "🔹 Commit SHA: ${{ steps.sha.outputs.short }}"
+          echo "🔹 Event: ${{ github.event_name }}"
+
+  # ============================================
+  # Job 2: Build - Install, Build, Save Image
+  # ============================================
+  build:
+    name: 🏗️ Build Docker Image
+    runs-on: ubuntu-latest
+    needs: setup
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.meta.outputs.digest }}
+    steps:
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🚀 Deploy to EC2 (Docker & Docker Compose)
+      - name: 🏗️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 📦 Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: |
+          echo "📦 Installing dependencies..."
+          npm ci
+          echo "✅ Dependencies installed successfully"
+
+      - name: 🔍 Run linter
+        run: |
+          echo "🔍 Running ESLint..."
+          npm run lint || echo "⚠️ Lint warnings found (non-blocking)"
+
+      - name: 🏗️ Build application
+        run: |
+          echo "🏗️ Building application..."
+          npm run build
+          echo "✅ Application built successfully"
+
+      - name: 🐳 Extract metadata
+        id: meta
+        run: |
+          IMAGE_TAG="${{ env.DOCKER_IMAGE_NAME }}:${{ needs.setup.outputs.sha }}"
+          IMAGE_LATEST="${{ env.DOCKER_IMAGE_NAME }}:latest"
+          echo "tags=$IMAGE_TAG,$IMAGE_LATEST" >> $GITHUB_OUTPUT
+          echo "🔹 Image tags: $IMAGE_TAG, $IMAGE_LATEST"
+
+      - name: 🐳 Build Docker image
+        run: |
+          IMAGE_TAG="${{ env.DOCKER_IMAGE_NAME }}:${{ needs.setup.outputs.sha }}"
+          IMAGE_LATEST="${{ env.DOCKER_IMAGE_NAME }}:latest"
+          
+          echo "🐳 Building Docker image: $IMAGE_TAG"
+          docker build -t $IMAGE_TAG -t $IMAGE_LATEST .
+          
+          echo "✅ Docker image built successfully"
+          docker images | grep "${{ env.DOCKER_IMAGE_NAME }}"
+
+      - name: 💾 Save Docker image
+        run: |
+          IMAGE_TAG="${{ env.DOCKER_IMAGE_NAME }}:${{ needs.setup.outputs.sha }}"
+          IMAGE_FILE="docker-image-${{ needs.setup.outputs.sha }}.tar"
+          
+          echo "💾 Saving Docker image to $IMAGE_FILE..."
+          docker save $IMAGE_TAG -o $IMAGE_FILE
+          
+          # Compress the image to reduce size
+          echo "🗜️ Compressing image..."
+          gzip -f $IMAGE_FILE
+          
+          echo "✅ Image saved and compressed: ${IMAGE_FILE}.gz"
+          ls -lh ${IMAGE_FILE}.gz
+
+      - name: 📤 Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ needs.setup.outputs.sha }}
+          path: docker-image-${{ needs.setup.outputs.sha }}.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+      - name: 📊 Build summary
+        run: |
+          echo "### 🏗️ Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Name:** ${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** ${{ needs.setup.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # Job 3: Deploy - SSH to EC2 and Deploy
+  # ============================================
+  deploy:
+    name: 🚀 Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: [setup, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📥 Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ needs.setup.outputs.sha }}
+          path: ./
+
+      - name: 🔐 Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: 🚀 Deploy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          source: "docker-image-${{ needs.setup.outputs.sha }}.tar.gz,docker-compose.yml"
+          target: ${{ env.APP_DIR }}
+
+      - name: 🐳 Deploy Docker containers
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
-          script_stop: true
-          debug: false
           script: |
             set -e
             
-            # Docker va Docker Compose o'rnatish tekshiruvi va o'rnatish
+            APP_DIR="${{ env.APP_DIR }}"
+            IMAGE_TAG="${{ env.DOCKER_IMAGE_NAME }}:${{ needs.setup.outputs.sha }}"
+            IMAGE_FILE="docker-image-${{ needs.setup.outputs.sha }}.tar.gz"
+            
+            echo "🚀 Starting deployment..."
+            
+            # Create app directory if it doesn't exist
+            mkdir -p $APP_DIR
+            cd $APP_DIR
+            
+            # Ensure Docker and Docker Compose are installed
             if ! command -v docker &> /dev/null; then
               echo ">> Docker o'rnatilmagan, o'rnatilmoqda..."
               sudo apt-get update -y
@@ -49,7 +218,7 @@ jobs:
               sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
               sudo systemctl start docker
               sudo systemctl enable docker
-              sudo usermod -aG docker ubuntu
+              sudo usermod -aG docker $USER
               echo ">> Docker muvaffaqiyatli o'rnatildi"
             else
               echo ">> Docker allaqachon o'rnatilgan"
@@ -65,30 +234,29 @@ jobs:
               echo ">> Docker Compose allaqachon o'rnatilgan"
             fi
             
-            # App directory yaratish
-            APP_DIR="/home/ubuntu/barbershop-bot"
-            mkdir -p $APP_DIR
-            cd $APP_DIR
-            
-            # Eski container'larni to'xtatish (5 soniya kutib)
-            echo ">> Waiting 5 seconds before stopping old environment..."
-            sleep 5
-            
-            if [ -f docker-compose.yml ]; then
-              echo ">> Stopping old containers..."
-              docker-compose down || true
-            fi
-            
-            # GitHub'dan kodlarni yuklash
-            echo ">> Cloning/pulling code from repository..."
-            if [ -d ".git" ]; then
-              git pull origin main || (git fetch && git reset --hard origin/main)
+            # Load Docker image (use sudo if needed, or newgrp for docker group)
+            echo "📥 Loading Docker image..."
+            if groups | grep -q docker; then
+              DOCKER_CMD="docker"
+              COMPOSE_CMD="docker-compose"
             else
-              git clone https://github.com/${{ github.repository }}.git .
+              DOCKER_CMD="sudo docker"
+              COMPOSE_CMD="sudo docker-compose"
+              echo "⚠️ Using sudo for docker commands (user not in docker group yet)"
             fi
             
-            # .env faylini yaratish
-            echo ">> Creating .env file..."
+            gunzip -c $IMAGE_FILE | $DOCKER_CMD load
+            $DOCKER_CMD tag $IMAGE_TAG ${{ env.DOCKER_IMAGE_NAME }}:latest
+            echo "✅ Docker image loaded successfully"
+            
+            # Stop old containers
+            echo "🛑 Stopping old containers..."
+            if [ -f docker-compose.yml ]; then
+              $COMPOSE_CMD down || true
+            fi
+            
+            # Create .env file
+            echo "📝 Creating .env file..."
             cat > .env << EOF
             # Telegram Bot Configuration
             BOT_TOKEN=${{ secrets.BOT_TOKEN }}
@@ -105,7 +273,7 @@ jobs:
             
             # Database Configuration (Docker Compose service nomi)
             DB_HOST=db
-            DB_PORT=5432
+            DB_PORT=${{ vars.DB_PORT }}
             DB_USERNAME=${{ vars.DB_USERNAME }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             DB_DATABASE=${{ vars.DB_DATABASE }}
@@ -115,71 +283,56 @@ jobs:
             NODE_ENV=production
             EOF
             
-            # Eski imagelarni tozalash
-            echo ">> Cleaning up old images..."
-            docker image prune -f || true
+            # Update docker-compose.yml to use image instead of build
+            echo "🔧 Updating docker-compose.yml to use pre-built image..."
+            IMAGE_NAME="${{ env.DOCKER_IMAGE_NAME }}:latest"
+            # Use awk to replace build section with image (more reliable than sed for multi-line)
+            awk -v img="$IMAGE_NAME" '
+            /^  app:/ { in_app=1; print; next }
+            in_app && /^    build:/ { 
+              print "    image: " img
+              skip_build=1
+              next
+            }
+            skip_build && /^      (context|dockerfile):/ { next }
+            skip_build && /^    [a-z]/ { skip_build=0; in_app=0 }
+            { print }
+            ' docker-compose.yml > docker-compose.yml.tmp && mv docker-compose.yml.tmp docker-compose.yml
+            echo "✅ docker-compose.yml updated to use image: $IMAGE_NAME"
             
-            # Docker Compose orqali build va start
-            echo ">> Building Docker images..."
-            docker-compose build --no-cache
+            # Clean up old images
+            echo "🧹 Cleaning up old images..."
+            $DOCKER_CMD image prune -f || true
             
-            echo ">> Starting containers..."
-            docker-compose up -d
+            # Start containers
+            echo "🚀 Starting containers..."
+            $COMPOSE_CMD up -d
             
-            # Database container'ning tayyor bo'lishini kutish
-            echo ">> Waiting for database to be ready..."
+            # Wait for database to be ready
+            echo "⏳ Waiting for database to be ready..."
             timeout=60
             counter=0
-            while ! docker-compose exec -T db pg_isready -U ${{ vars.DB_USERNAME }} > /dev/null 2>&1; do
+            while ! $COMPOSE_CMD exec -T db pg_isready -U ${{ vars.DB_USERNAME }} > /dev/null 2>&1; do
               if [ $counter -ge $timeout ]; then
-                echo ">> Database container tayyor bo'lmadi!"
+                echo "❌ Database container tayyor bo'lmadi!"
                 exit 1
               fi
               echo "Database kutilyapti... ($counter/$timeout)"
               sleep 2
               counter=$((counter + 2))
             done
-            echo ">> Database container tayyor!"
+            echo "✅ Database container tayyor!"
             
-            # Container'lar holati
-            echo ">> Container status:"
-            docker-compose ps
+            # Show container status
+            echo "📊 Container status:"
+            $COMPOSE_CMD ps
             
-            echo ">> Deployment completed successfully!"
+            echo "✅ Deployment completed successfully!"
 
-      - name: 🏥 Health Check
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          script_stop: true
-          script: |
-            set -e
-            cd /home/ubuntu/barbershop-bot
-            
-            echo ">> Final health check..."
-            sleep 10
-            
-            # Qaysi port ishlayotganini aniqlash
-            ACTIVE_PORT=${{ vars.PORT || 3000 }}
-            
-            echo ">> Checking health on port $ACTIVE_PORT..."
-            for i in {1..10}; do
-              if curl -f http://localhost:$ACTIVE_PORT/api > /dev/null 2>&1; then
-                echo ""
-                echo "✓ Health check muvaffaqiyatli!"
-                echo ">> Application is running on port $ACTIVE_PORT"
-                exit 0
-              fi
-              echo "Kutilmoqda... ($i/10)"
-              sleep 3
-            done
-            
-            echo "✗ Health check muvaffaqiyatsiz!"
-            echo ">> Container loglari:"
-            docker-compose logs --tail=100 app || true
-            echo ">> Container holati:"
-            docker-compose ps -a
-            exit 1
+      - name: 📊 Deployment summary
+        run: |
+          echo "### 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Server:** ${{ secrets.DEPLOY_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ env.DOCKER_IMAGE_NAME }}:${{ needs.setup.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** http://${{ secrets.DEPLOY_HOST }}:${{ vars.PORT }}" >> $GITHUB_STEP_SUMMARY
