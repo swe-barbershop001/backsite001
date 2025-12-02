@@ -350,6 +350,10 @@ jobs:
             echo "📊 Container status:"
             $COMPOSE_CMD ps
             
+            # Show database volume info
+            echo "💾 Database volume info:"
+            $DOCKER_CMD volume inspect postgres_data 2>/dev/null || echo "Volume info not available"
+            
             echo "✅ Deployment completed successfully!"
 
       - name: 📊 Deployment summary
