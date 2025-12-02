@@ -168,29 +168,56 @@ jobs:
           name: docker-image-${{ needs.setup.outputs.sha }}
           path: ./
 
-      - name: 🔐 Setup SSH key
+      - name: 🔐 Setup SSH key and test connection
         run: |
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          
+          # Add host to known_hosts
+          ssh-keyscan -p ${{ secrets.DEPLOY_PORT || 22 }} -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          
+          # Test SSH connection with retry
+          echo "🔍 Testing SSH connection..."
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          CONNECTED=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+            if ssh -i ~/.ssh/deploy_key \
+                   -o StrictHostKeyChecking=no \
+                   -o UserKnownHostsFile=~/.ssh/known_hosts \
+                   -o ConnectTimeout=30 \
+                   -o ServerAliveInterval=60 \
+                   -o ServerAliveCountMax=3 \
+                   -p ${{ secrets.DEPLOY_PORT || 22 }} \
+                   ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+                   "echo 'SSH connection successful!'" 2>/dev/null; then
+              CONNECTED=true
+              echo "✅ SSH connection successful!"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⏳ Retrying in 5 seconds..."
+                sleep 5
+              fi
+            fi
+          done
+          
+          if [ "$CONNECTED" = false ]; then
+            echo "❌ SSH connection failed after $MAX_RETRIES attempts"
+            echo "Please check:"
+            echo "  - EC2 instance is running"
+            echo "  - Security Group allows SSH (port ${{ secrets.DEPLOY_PORT || 22 }})"
+            echo "  - DEPLOY_HOST is correct: ${{ secrets.DEPLOY_HOST }}"
+            echo "  - DEPLOY_USER is correct: ${{ secrets.DEPLOY_USER }}"
+            exit 1
+          fi
 
-      - name: 🔍 Test SSH connection
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          timeout: 60s
-          command_timeout: 30s
-          script: |
-            echo "✅ SSH connection successful!"
-            echo "Hostname: $(hostname)"
-            echo "User: $(whoami)"
-            echo "Current directory: $(pwd)"
-
-      - name: 🚀 Deploy to server
+      - name: 🚀 Deploy files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -199,11 +226,12 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: "docker-image-${{ needs.setup.outputs.sha }}.tar.gz,docker-compose.yml"
           target: ${{ env.APP_DIR }}
-          timeout: 300s
-          command_timeout: 300s
+          timeout: 600s
+          command_timeout: 600s
           debug: true
           strip_components: 0
           overwrite: true
+          use_insecure_cipher: false
 
       - name: 🐳 Deploy Docker containers
         uses: appleboy/ssh-action@v1.0.3
@@ -212,9 +240,10 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
-          timeout: 600s
-          command_timeout: 600s
+          timeout: 900s
+          command_timeout: 900s
           debug: true
+          use_insecure_cipher: false
           script: |
             set -e
             
@@ -223,10 +252,14 @@ jobs:
             IMAGE_FILE="docker-image-${{ needs.setup.outputs.sha }}.tar.gz"
             
             echo "🚀 Starting deployment..."
+            echo "📁 App directory: $APP_DIR"
+            echo "🐳 Image tag: $IMAGE_TAG"
+            echo "📦 Image file: $IMAGE_FILE"
             
             # Create app directory if it doesn't exist
             mkdir -p $APP_DIR
             cd $APP_DIR
+            echo "✅ Changed to directory: $(pwd)"
             
             # Ensure Docker and Docker Compose are installed
             if ! command -v docker &> /dev/null; then
@@ -268,9 +301,20 @@ jobs:
               echo "⚠️ Using sudo for docker commands (user not in docker group yet)"
             fi
             
+            # Check if image file exists
+            if [ ! -f "$IMAGE_FILE" ]; then
+              echo "❌ Image file not found: $IMAGE_FILE"
+              echo "📂 Current directory contents:"
+              ls -la
+              exit 1
+            fi
+            
+            echo "📦 Loading image from $IMAGE_FILE..."
             gunzip -c $IMAGE_FILE | $DOCKER_CMD load
             $DOCKER_CMD tag $IMAGE_TAG ${{ env.DOCKER_IMAGE_NAME }}:latest
             echo "✅ Docker image loaded successfully"
+            echo "📋 Available images:"
+            $DOCKER_CMD images | grep "${{ env.DOCKER_IMAGE_NAME }}" || true
             
             # Stop old containers
             echo "🛑 Stopping old containers..."
