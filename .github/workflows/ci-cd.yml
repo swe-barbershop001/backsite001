@@ -168,6 +168,19 @@ jobs:
           name: docker-image-${{ needs.setup.outputs.sha }}
           path: ./
 
+      - name: 🔍 Test SSH connection
+        run: |
+          echo "🔍 Testing SSH connection..."
+          echo "Host: ${{ secrets.DEPLOY_HOST }}"
+          echo "User: ${{ secrets.DEPLOY_USER }}"
+          echo "Port: ${{ secrets.DEPLOY_PORT || 22 }}"
+          echo ""
+          echo "📋 GitHub Actions IP information:"
+          curl -s https://api.github.com/meta | grep -i "actions" || echo "Could not fetch GitHub IPs"
+          echo ""
+          echo "🌐 Testing connectivity to ${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PORT || 22 }}"
+          timeout 10 bash -c "echo > /dev/tcp/${{ secrets.DEPLOY_HOST }}/${{ secrets.DEPLOY_PORT || 22 }}" 2>&1 && echo "✅ Port is reachable" || echo "❌ Port is not reachable (this might be normal if firewall blocks TCP checks)"
+
       - name: 🚀 Create target directory on server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -175,12 +188,16 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
-          timeout: 30s
-          command_timeout: 30s
+          timeout: 60s
+          command_timeout: 60s
+          debug: true
           script: |
             mkdir -p ${{ env.APP_DIR }}
             cd ${{ env.APP_DIR }}
             echo "✅ Directory created: ${{ env.APP_DIR }}"
+            echo "📍 Current directory: $(pwd)"
+            echo "👤 User: $(whoami)"
+            echo "🖥️  Hostname: $(hostname)"
 
       - name: 📤 Copy files to server
         uses: appleboy/scp-action@v0.1.7
@@ -191,7 +208,7 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: "docker-image-${{ needs.setup.outputs.sha }}.tar.gz,docker-compose.yml"
           target: ${{ env.APP_DIR }}
-          timeout: 30s
+          timeout: 60s
           command_timeout: 10m
           debug: true
           strip_components: 0
@@ -204,8 +221,9 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
-          timeout: 30s
+          timeout: 60s
           command_timeout: 10m
+          debug: true
           script: |
             cd ${{ env.APP_DIR }}
             
