@@ -175,6 +175,21 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      - name: 🔍 Test SSH connection
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 30s
+          script: |
+            echo "✅ SSH connection successful!"
+            echo "Hostname: $(hostname)"
+            echo "User: $(whoami)"
+            echo "Current directory: $(pwd)"
+
       - name: 🚀 Deploy to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -184,6 +199,11 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: "docker-image-${{ needs.setup.outputs.sha }}.tar.gz,docker-compose.yml"
           target: ${{ env.APP_DIR }}
+          timeout: 300s
+          command_timeout: 300s
+          debug: true
+          strip_components: 0
+          overwrite: true
 
       - name: 🐳 Deploy Docker containers
         uses: appleboy/ssh-action@v1.0.3
@@ -192,6 +212,9 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
+          timeout: 600s
+          command_timeout: 600s
+          debug: true
           script: |
             set -e
             
@@ -326,6 +349,10 @@ jobs:
             # Show container status
             echo "📊 Container status:"
             $COMPOSE_CMD ps
+            
+            # Show database volume info
+            echo "💾 Database volume info:"
+            $DOCKER_CMD volume inspect postgres_data 2>/dev/null || echo "Volume info not available"
             
             echo "✅ Deployment completed successfully!"
 
