@@ -240,13 +240,20 @@ jobs:
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             
             # Try SSH connection with verbose output
-            SSH_OUTPUT=$(ssh -v -i ~/.ssh/deploy_key \
+            echo "🔌 Attempting SSH connection..."
+            echo "Command: ssh -i ~/.ssh/deploy_key -p $DEPLOY_PORT $DEPLOY_USER@$DEPLOY_HOST"
+            
+            # Check key permissions
+            KEY_PERM=$(stat -c "%a" ~/.ssh/deploy_key 2>/dev/null || stat -f "%OLp" ~/.ssh/deploy_key 2>/dev/null || echo "unknown")
+            echo "🔐 Key permissions: $KEY_PERM (should be 600)"
+            
+            # Try SSH connection with full verbose output
+            SSH_OUTPUT=$(ssh -vvv -i ~/.ssh/deploy_key \
                    -o StrictHostKeyChecking=no \
                    -o UserKnownHostsFile=~/.ssh/known_hosts \
                    -o ConnectTimeout=30 \
                    -o ServerAliveInterval=60 \
                    -o ServerAliveCountMax=3 \
-                   -o LogLevel=ERROR \
                    -p $DEPLOY_PORT \
                    $DEPLOY_USER@$DEPLOY_HOST \
                    "echo 'SSH connection successful!'" 2>&1)
@@ -256,12 +263,41 @@ jobs:
             if [ $SSH_EXIT_CODE -eq 0 ]; then
               CONNECTED=true
               echo "✅ SSH connection successful!"
-              echo "$SSH_OUTPUT"
+              echo "$SSH_OUTPUT" | tail -10
               break
             else
               echo "❌ SSH connection failed (exit code: $SSH_EXIT_CODE)"
-              echo "Error details:"
-              echo "$SSH_OUTPUT" | grep -i "error\|failed\|denied\|timeout\|refused" | head -5 || echo "No specific error messages found"
+              echo ""
+              echo "📋 Full SSH verbose output:"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "$SSH_OUTPUT"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              echo "🔍 Key error messages:"
+              echo "$SSH_OUTPUT" | grep -iE "error|failed|denied|timeout|refused|permission|authentication|connection|unreachable|no route" | head -10 || echo "No specific error messages found"
+              
+              # Common error analysis
+              if echo "$SSH_OUTPUT" | grep -qi "Permission denied"; then
+                echo ""
+                echo "⚠️  PERMISSION DENIED - Possible causes:"
+                echo "   1. Wrong SSH key (not matching EC2 key pair)"
+                echo "   2. Wrong username (should be 'ubuntu' for Ubuntu, 'ec2-user' for Amazon Linux)"
+                echo "   3. SSH key format issue"
+              fi
+              
+              if echo "$SSH_OUTPUT" | grep -qi "Connection refused\|Connection timed out"; then
+                echo ""
+                echo "⚠️  CONNECTION REFUSED/TIMEOUT - Possible causes:"
+                echo "   1. EC2 instance is not running"
+                echo "   2. Security Group doesn't allow SSH (port $DEPLOY_PORT)"
+                echo "   3. Wrong host/IP address"
+                echo "   4. Firewall blocking connection"
+              fi
+              
+              if echo "$SSH_OUTPUT" | grep -qi "Host key verification failed"; then
+                echo ""
+                echo "⚠️  HOST KEY VERIFICATION FAILED - This should be handled by StrictHostKeyChecking=no"
+              fi
               
               RETRY_COUNT=$((RETRY_COUNT + 1))
               if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
