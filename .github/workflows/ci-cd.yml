@@ -165,16 +165,28 @@ jobs:
 
       - name: Test SSH connection
         run: |
-          echo "Testing SSH connection..."
+          echo "=========================================="
+          echo "SSH Connection Test"
+          echo "=========================================="
           echo "Host: ${{ secrets.DEPLOY_HOST }}"
           echo "User: ${{ secrets.DEPLOY_USER }}"
           echo "Port: ${{ secrets.DEPLOY_PORT || 22 }}"
           echo ""
-          echo "GitHub Actions IP information:"
-          curl -s https://api.github.com/meta | grep -i "actions" || echo "Could not fetch GitHub IPs"
+          echo "GitHub Actions IP ranges:"
+          curl -s https://api.github.com/meta | jq -r '.actions[]' 2>/dev/null || curl -s https://api.github.com/meta | grep -i "actions" || echo "Could not fetch GitHub IPs"
           echo ""
-          echo "Testing connectivity to ${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PORT || 22 }}"
-          timeout 10 bash -c "echo > /dev/tcp/${{ secrets.DEPLOY_HOST }}/${{ secrets.DEPLOY_PORT || 22 }}" 2>&1 && echo "Port is reachable" || echo "Port is not reachable (this might be normal if firewall blocks TCP checks)"
+          echo "=========================================="
+          echo "IMPORTANT: If connection fails, check:"
+          echo "1. EC2 Security Group -> Inbound Rules"
+          echo "2. SSH (port 22) should allow:"
+          echo "   - Source: 0.0.0.0/0 (for testing)"
+          echo "   - OR GitHub Actions IP ranges"
+          echo "3. EC2 instance is running"
+          echo "4. DEPLOY_HOST is correct (Public IP or DNS)"
+          echo "=========================================="
+          echo ""
+          echo "Testing connectivity..."
+          timeout 10 bash -c "echo > /dev/tcp/${{ secrets.DEPLOY_HOST }}/${{ secrets.DEPLOY_PORT || 22 }}" 2>&1 && echo "SUCCESS: Port is reachable" || echo "WARNING: Port is not reachable - check Security Group settings"
 
       - name: Create target directory on server
         uses: appleboy/ssh-action@v1.0.3
