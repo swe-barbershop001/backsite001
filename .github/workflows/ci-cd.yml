@@ -322,6 +322,7 @@ jobs:
             echo "DB_USERNAME=${{ vars.DB_USERNAME }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_DATABASE=${{ vars.DB_DATABASE }}" >> .env
+            echo "DB_SYNCHRONIZE=true" >> .env
             echo "PORT=${{ vars.PORT }}" >> .env
             echo "NODE_ENV=production" >> .env
             
