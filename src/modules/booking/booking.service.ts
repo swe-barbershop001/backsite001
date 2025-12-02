@@ -353,6 +353,195 @@ ${services
     }
   }
 
+  private async notifyBarberOnApproval(booking: Booking): Promise<void> {
+    try {
+      if (!booking.barber) {
+        return;
+      }
+
+      const barber = booking.barber;
+
+      // Barber'ning tg_id va tg_username bo'lishini tekshirish
+      if (!barber.tg_id || !barber.tg_username) {
+        return;
+      }
+
+      const client = booking.client;
+      const service = booking.service;
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const barberMessage = `
+<b>✅ Booking tasdiqlandi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client.name || client.phone_number}
+${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+💈 <b>Xizmat:</b> ${service.name} – ${Number(service.price).toLocaleString()} so'm (${service.duration} daqiqa)
+
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+📋 <b>Status:</b> 🟢 APPROVED
+
+━━━━━━━━━━━━━━━━━━
+
+Xizmatni vaqtida bajarishni unutmang! 🎉
+`;
+
+      // Barber'ga Telegram orqali xabar yuborish
+      try {
+        await this.botService.sendMessage(barber.tg_id, barberMessage, {
+          parse_mode: 'HTML',
+        });
+      } catch (error: any) {
+        // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
+        if (!error?.description?.includes('chat not found')) {
+          console.error(
+            `Failed to send approval message to barber ${barber.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify barber on approval:', error);
+    }
+  }
+
+  private async notifyBarberOnCompletion(booking: Booking): Promise<void> {
+    try {
+      if (!booking.barber) {
+        return;
+      }
+
+      const barber = booking.barber;
+
+      // Barber'ning tg_id va tg_username bo'lishini tekshirish
+      if (!barber.tg_id || !barber.tg_username) {
+        return;
+      }
+
+      const client = booking.client;
+      const service = booking.service;
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const barberMessage = `
+<b>✅ Booking yakunlandi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client.name || client.phone_number}
+${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+💈 <b>Xizmat:</b> ${service.name} – ${Number(service.price).toLocaleString()} so'm (${service.duration} daqiqa)
+
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+📋 <b>Status:</b> ✅ COMPLETED
+${booking.comment ? `💬 <b>Mijoz izohi:</b> ${booking.comment}\n` : ''}
+━━━━━━━━━━━━━━━━━━
+
+Xizmat muvaffaqiyatli yakunlandi! 🎉
+`;
+
+      // Barber'ga Telegram orqali xabar yuborish
+      try {
+        await this.botService.sendMessage(barber.tg_id, barberMessage, {
+          parse_mode: 'HTML',
+        });
+      } catch (error: any) {
+        // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
+        if (!error?.description?.includes('chat not found')) {
+          console.error(
+            `Failed to send completion message to barber ${barber.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify barber on completion:', error);
+    }
+  }
+
+  private async notifyBarberOnRejection(booking: Booking): Promise<void> {
+    try {
+      if (!booking.barber) {
+        return;
+      }
+
+      const barber = booking.barber;
+
+      // Barber'ning tg_id va tg_username bo'lishini tekshirish
+      if (!barber.tg_id || !barber.tg_username) {
+        return;
+      }
+
+      const client = booking.client;
+      const service = booking.service;
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const barberMessage = `
+<b>❌ Booking bekor qilindi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client.name || client.phone_number}
+${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+💈 <b>Xizmat:</b> ${service.name} – ${Number(service.price).toLocaleString()} so'm (${service.duration} daqiqa)
+
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+📋 <b>Status:</b> ❌ REJECTED
+
+━━━━━━━━━━━━━━━━━━
+
+Bu booking admin tomonidan bekor qilindi.
+`;
+
+      // Barber'ga Telegram orqali xabar yuborish
+      try {
+        await this.botService.sendMessage(barber.tg_id, barberMessage, {
+          parse_mode: 'HTML',
+        });
+      } catch (error: any) {
+        // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
+        if (!error?.description?.includes('chat not found')) {
+          console.error(
+            `Failed to send rejection message to barber ${barber.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify barber on rejection:', error);
+    }
+  }
+
   async findAll(): Promise<Booking[]> {
     return await this.bookingRepository.find({
       relations: ['client', 'barber', 'service'],
@@ -457,35 +646,72 @@ ${services
     id: number,
     status: BookingStatus,
   ): Promise<Booking | null> {
+    const booking = await this.findOne(id);
+    
+    if (!booking) {
+      throw new BadRequestException(`Bunday ID bilan bron topilmadi: ${id}`);
+    }
+
     if (
       status === BookingStatus.REJECTED ||
       status === BookingStatus.COMPLETED
     ) {
-      const booking = await this.findOne(id);
-
       /**
        * tg_id va tg_username yo'q clientlarni o'chirib tashlash
+       * Faqat barcha booking'lari COMPLETED yoki REJECTED bo'lsa o'chirish mumkin
        */
-      if (booking) {
-        const client = booking.client;
-        const foundClient = await this.userRepository.findOne({
-          where: { id: client.id },
+      const client = booking.client;
+      const foundClient = await this.userRepository.findOne({
+        where: { id: client.id },
+      });
+
+      if (
+        foundClient &&
+        !foundClient.tg_id &&
+        !foundClient.tg_username &&
+        foundClient.role === UserRole.CLIENT
+      ) {
+        // Client'ning barcha booking'larini tekshirish
+        const allClientBookings = await this.bookingRepository.find({
+          where: { client_id: foundClient.id },
         });
 
-        if (
-          foundClient &&
-          !foundClient.tg_id &&
-          !foundClient.tg_username &&
-          foundClient.role === UserRole.CLIENT
-        ) {
+        // Faqat barcha booking'lari COMPLETED yoki REJECTED bo'lsa o'chirish mumkin
+        const allCompletedOrRejected = allClientBookings.every(
+          (b) =>
+            b.status === BookingStatus.COMPLETED ||
+            b.status === BookingStatus.REJECTED,
+        );
+
+        if (allCompletedOrRejected && allClientBookings.length > 0) {
+          // Avval barcha booking'larni o'chirish
+          await this.bookingRepository.remove(allClientBookings);
+          // Keyin client'ni o'chirish
           await this.userRepository.remove(foundClient);
         }
-      }else{
-        throw new BadRequestException(`Bunday ID bilan bron topilmadi: ${id}`);
       }
     }
+
+    // Status'ni yangilash
     await this.bookingRepository.update(id, { status });
-    return await this.findOne(id);
+    const updatedBooking = await this.findOne(id);
+
+    // Agar status APPROVED bo'lsa, barber'ga xabar yuborish
+    if (status === BookingStatus.APPROVED && updatedBooking) {
+      await this.notifyBarberOnApproval(updatedBooking);
+    }
+
+    // Agar status COMPLETED bo'lsa, barber'ga xabar yuborish
+    if (status === BookingStatus.COMPLETED && updatedBooking) {
+      await this.notifyBarberOnCompletion(updatedBooking);
+    }
+
+    // Agar status REJECTED bo'lsa, barber'ga xabar yuborish
+    if (status === BookingStatus.REJECTED && updatedBooking) {
+      await this.notifyBarberOnRejection(updatedBooking);
+    }
+
+    return updatedBooking;
   }
 
   async updateComment(id: number, comment: string): Promise<Booking | null> {
