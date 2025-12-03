@@ -355,7 +355,7 @@ jobs:
             echo "SUPER_ADMIN_PHONE=${{ vars.SUPER_ADMIN_PHONE }}" >> .env
             echo "JWT_TOKEN_SECRET=${{ secrets.JWT_TOKEN_SECRET }}" >> .env
             echo "JWT_TOKEN_EXPIRATION=${{ vars.JWT_TOKEN_EXPIRATION }}" >> .env
-            echo "DB_HOST=${{ vars.DB_HOST || 'db' }}" >> .env
+            echo "DB_HOST=db" >> .env
             echo "DB_PORT=${{ vars.DB_PORT }}" >> .env
             echo "DB_USERNAME=${{ vars.DB_USERNAME }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
