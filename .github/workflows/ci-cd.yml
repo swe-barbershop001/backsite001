@@ -218,7 +218,6 @@ jobs:
           timeout: 120s
           command_timeout: 10m
           debug: true
-          script_stop: true
           script: |
             cd ${{ env.APP_DIR }}
             
@@ -271,7 +270,7 @@ jobs:
             
             # Stop old containers
             echo "Stopping old containers..."
-            $COMPOSE_CMD down || echo "docker-compose down failed"
+            $COMPOSE_CMD down || true
             
             # Load Docker image - to'g'ri faylni topish
             IMAGE_FILE="docker-image-${{ needs.setup.outputs.sha }}.tar.gz"
@@ -364,17 +363,23 @@ jobs:
             
             # Start containers (no build needed, image already loaded)
             echo "Starting containers..."
-            $COMPOSE_CMD up -d || {
+            if ! $COMPOSE_CMD up -d; then
               echo "ERROR: Failed to start containers!"
-              $COMPOSE_CMD logs
+              echo "Container status:"
+              $DOCKER_CMD ps -a
+              echo "Docker compose logs:"
+              $COMPOSE_CMD logs || true
+              echo "Docker images:"
+              $DOCKER_CMD images | grep "${{ env.DOCKER_IMAGE_NAME }}" || true
               exit 1
-            }
+            fi
             
             # Wait for database to be ready
             echo "Waiting for database to be ready..."
+            DB_USER="${{ vars.DB_USERNAME || 'postgres' }}"
             timeout=60
             counter=0
-            while ! $COMPOSE_CMD exec -T db pg_isready -U ${{ vars.DB_USERNAME }} > /dev/null 2>&1; do
+            while ! $COMPOSE_CMD exec -T db pg_isready -U $DB_USER > /dev/null 2>&1; do
               if [ $counter -ge $timeout ]; then
                 echo "ERROR: Database container not ready after $timeout seconds!"
                 $COMPOSE_CMD logs db
