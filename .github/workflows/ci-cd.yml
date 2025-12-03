@@ -7,7 +7,6 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
 
 env:
   NODE_VERSION: '20'
@@ -150,43 +149,32 @@ jobs:
     name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: [setup, build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Faqat main branch'dan push bo'lganda deploy qilish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_name == 'main'
     environment:
       name: production
     steps:
+      - name: Verify deployment conditions
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "❌ ERROR: Deployment is only allowed from main branch!"
+            echo "Current branch: ${{ github.ref }}"
+            exit 1
+          fi
+          echo "✅ Branch verification passed: Deploying from main branch"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Event: ${{ github.event_name }}"
+      
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Download Docker image artifact
         uses: actions/download-artifact@v4
         with:
           name: docker-image-${{ needs.setup.outputs.sha }}
           path: ./
-
-      - name: Test SSH connection
-        run: |
-          echo "=========================================="
-          echo "SSH Connection Test"
-          echo "=========================================="
-          echo "Host: ${{ secrets.DEPLOY_HOST }}"
-          echo "User: ${{ secrets.DEPLOY_USER }}"
-          echo "Port: ${{ secrets.DEPLOY_PORT || 22 }}"
-          echo ""
-          echo "GitHub Actions IP ranges:"
-          curl -s https://api.github.com/meta | jq -r '.actions[]' 2>/dev/null || curl -s https://api.github.com/meta | grep -i "actions" || echo "Could not fetch GitHub IPs"
-          echo ""
-          echo "=========================================="
-          echo "IMPORTANT: If connection fails, check:"
-          echo "1. EC2 Security Group -> Inbound Rules"
-          echo "2. SSH (port 22) should allow:"
-          echo "   - Source: 0.0.0.0/0 (for testing)"
-          echo "   - OR GitHub Actions IP ranges"
-          echo "3. EC2 instance is running"
-          echo "4. DEPLOY_HOST is correct (Public IP or DNS)"
-          echo "=========================================="
-          echo ""
-          echo "Testing connectivity..."
-          timeout 10 bash -c "echo > /dev/tcp/${{ secrets.DEPLOY_HOST }}/${{ secrets.DEPLOY_PORT || 22 }}" 2>&1 && echo "SUCCESS: Port is reachable" || echo "WARNING: Port is not reachable - check Security Group settings"
 
       - name: Create target directory on server
         uses: appleboy/ssh-action@v1.0.3
@@ -222,18 +210,6 @@ jobs:
           debug: true
           strip_components: 0
           overwrite: true
-
-      - name: Verify SSH connection before deploy
-        run: |
-          echo "Verifying SSH connection details..."
-          echo "If connection fails, check:"
-          echo "1. DEPLOY_HOST is correct (Public IP or Public DNS)"
-          echo "2. Security Group is attached to the instance"
-          echo "3. Instance is in a public subnet with Internet Gateway"
-          echo "4. SSH service is running on the instance"
-          echo ""
-          echo "Test from your local machine:"
-          echo "ssh -i <your-key>.pem ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} -p ${{ secrets.DEPLOY_PORT || 22 }}"
 
       - name: Deploy Docker containers
         uses: appleboy/ssh-action@v1.0.3
@@ -342,7 +318,7 @@ jobs:
             echo "SUPER_ADMIN_PHONE=${{ vars.SUPER_ADMIN_PHONE }}" >> .env
             echo "JWT_TOKEN_SECRET=${{ secrets.JWT_TOKEN_SECRET }}" >> .env
             echo "JWT_TOKEN_EXPIRATION=${{ vars.JWT_TOKEN_EXPIRATION }}" >> .env
-            echo "DB_HOST=${{ vars.DB_HOST || 'db' }}" >> .env
+            echo "DB_HOST=db" >> .env
             echo "DB_PORT=${{ vars.DB_PORT }}" >> .env
             echo "DB_USERNAME=${{ vars.DB_USERNAME }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
