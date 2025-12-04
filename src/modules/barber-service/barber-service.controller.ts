@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -19,25 +27,30 @@ export class BarberServiceController {
 
   @Get()
   @ApiOperation({ summary: 'Barcha xizmatlarni olish (Ochiq)' })
-  @ApiResponse({ status: 200, description: 'Barcha xizmatlar ro\'yxati' })
+  @ApiResponse({ status: 200, description: "Barcha xizmatlar ro'yxati" })
   findAll() {
     return this.barberServiceService.findAll();
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'ID bo\'yicha xizmatni olish (Ochiq)' })
+  @ApiOperation({ summary: "ID bo'yicha xizmatni olish (Ochiq)" })
   @ApiParam({ name: 'id', type: 'number', description: 'Xizmat ID' })
   @ApiResponse({ status: 200, description: 'Xizmat topildi' })
   @ApiResponse({ status: 404, description: 'Xizmat topilmadi' })
-  findOne(@Param('id') id: string) {
-    return this.barberServiceService.findOne(+id);
+  @ApiResponse({ status: 400, description: "Noto'g'ri ID format" })
+  async findOne(@Param('id') id: string) {
+    const numId = +id;
+    if (isNaN(numId)) {
+      throw new BadRequestException("Noto'g'ri ID format");
+    }
+    return await this.barberServiceService.findOne(numId);
   }
 
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Yangi sartarosh xizmati yaratish' })
   @ApiResponse({ status: 201, description: 'Xizmat muvaffaqiyatli yaratildi' })
-  @ApiResponse({ status: 400, description: 'Noto\'g\'ri so\'rov' })
+  @ApiResponse({ status: 400, description: "Noto'g'ri so'rov" })
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   create(@Body() createBarberServiceDto: CreateBarberServiceDto) {

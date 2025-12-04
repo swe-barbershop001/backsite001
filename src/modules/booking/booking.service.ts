@@ -17,6 +17,7 @@ import { BarberServiceService } from '../barber-service/barber-service.service';
 import { InlineKeyboard } from 'grammy';
 import { BookingGateway } from './gateways/booking.gateway';
 import { User } from '../user/entities/user.entity';
+import { UpdateStatusDto } from './dto/update-status.dto';
 
 @Injectable()
 export class BookingService {
@@ -54,20 +55,44 @@ export class BookingService {
       );
     }
 
+    // Barcha servislarni tekshirish
+    for (const serviceId of service_ids) {
+      const service = await this.barberServiceService.findOne(serviceId);
+      if (!service) {
+        throw new BadRequestException(`ID ${serviceId} bilan xizmat topilmadi`);
+      }
+    }
+
     // Phone number bo'yicha user topish
     let client = await this.userService.findByPhoneNumber(phone_number);
 
-    console.log({ client });
     if (client?.phone_number == phone_number && client.name == client_name) {
-      throw new BadRequestException(
-        `Bu telefon raqam (${phone_number}) va (${client_name}) bilan foydalanuvchi allaqachon mavjud`,
-      );
+      // Foydalanuvchi allaqachon mavjud, yangi yaratmaymiz
     } else {
-      client = await this.userService.create({
-        phone_number,
-        role: UserRole.CLIENT,
-        name: client_name,
-      });
+      // Yangi foydalanuvchi yaratish
+      try {
+        client = await this.userService.create({
+          phone_number,
+          role: UserRole.CLIENT,
+          name: client_name,
+        });
+      } catch (error: any) {
+        // Agar unique constraint xatosi bo'lsa, qayta topishga harakat qilamiz
+        if (error?.message?.includes('allaqachon mavjud')) {
+          client = await this.userService.findByPhoneNumber(phone_number);
+          if (!client) {
+            throw new BadRequestException(
+              'Foydalanuvchi yaratishda xatolik yuz berdi',
+            );
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (!client || !client.id) {
+      throw new BadRequestException("Mijoz ma'lumotlari topilmadi");
     }
 
     const client_id = client.id;
@@ -125,6 +150,10 @@ export class BookingService {
       const client = bookingWithRelations.client;
       const barber = bookingWithRelations.barber;
       const service = bookingWithRelations.service;
+
+      if (!client || !barber || !service) {
+        return;
+      }
 
       // Agar bir nechta booking bo'lsa, barcha servislarni olish
       let services: (typeof service)[] = [service];
@@ -277,6 +306,10 @@ ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'
       const client = bookingWithRelations.client;
       const barber = bookingWithRelations.barber;
 
+      if (!client || !barber) {
+        return;
+      }
+
       // Barber'ning tg_id va tg_username bo'lishini tekshirish
       if (!barber.tg_id || !barber.tg_username) {
         return;
@@ -356,7 +389,7 @@ ${services
 
   private async notifyBarberOnApproval(booking: Booking): Promise<void> {
     try {
-      if (!booking.barber) {
+      if (!booking || !booking.barber) {
         return;
       }
 
@@ -369,6 +402,10 @@ ${services
 
       const client = booking.client;
       const service = booking.service;
+
+      if (!client || !service) {
+        return;
+      }
 
       // Format date for display
       const dateObj = new Date(booking.date + 'T00:00:00');
@@ -419,7 +456,7 @@ Xizmatni vaqtida bajarishni unutmang! 🎉
 
   private async notifyBarberOnCompletion(booking: Booking): Promise<void> {
     try {
-      if (!booking.barber) {
+      if (!booking || !booking.barber) {
         return;
       }
 
@@ -432,6 +469,10 @@ Xizmatni vaqtida bajarishni unutmang! 🎉
 
       const client = booking.client;
       const service = booking.service;
+
+      if (!client || !service) {
+        return;
+      }
 
       // Format date for display
       const dateObj = new Date(booking.date + 'T00:00:00');
@@ -482,7 +523,7 @@ Xizmat muvaffaqiyatli yakunlandi! 🎉
 
   private async notifyBarberOnRejection(booking: Booking): Promise<void> {
     try {
-      if (!booking.barber) {
+      if (!booking || !booking.barber) {
         return;
       }
 
@@ -495,6 +536,10 @@ Xizmat muvaffaqiyatli yakunlandi! 🎉
 
       const client = booking.client;
       const service = booking.service;
+
+      if (!client || !service) {
+        return;
+      }
 
       // Format date for display
       const dateObj = new Date(booking.date + 'T00:00:00');
@@ -550,6 +595,10 @@ Bu booking admin tomonidan bekor qilindi.
   }
 
   async findOne(id: number): Promise<Booking | null> {
+    if (!id || isNaN(id)) {
+      throw new BadRequestException("Noto'g'ri ID format");
+    }
+
     return await this.bookingRepository.findOne({
       where: { id },
       relations: ['client', 'barber', 'service'],
@@ -557,6 +606,10 @@ Bu booking admin tomonidan bekor qilindi.
   }
 
   async findByClientId(clientId: number): Promise<Booking[]> {
+    if (!clientId || isNaN(clientId)) {
+      throw new BadRequestException("Noto'g'ri mijoz ID format");
+    }
+
     return await this.bookingRepository.find({
       where: { client_id: clientId },
       relations: ['barber', 'service'],
@@ -565,6 +618,10 @@ Bu booking admin tomonidan bekor qilindi.
   }
 
   async findByBarberId(barberId: number): Promise<Booking[]> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
     return await this.bookingRepository.find({
       where: { barber_id: barberId },
       relations: ['client', 'service'],
@@ -589,15 +646,15 @@ Bu booking admin tomonidan bekor qilindi.
   }
 
   async approve(id: number): Promise<Booking | null> {
-    return await this.updateStatus(id, BookingStatus.APPROVED);
+    return await this.updateStatus(id, { status: BookingStatus.APPROVED });
   }
 
   async reject(id: number): Promise<Booking | null> {
-    return await this.updateStatus(id, BookingStatus.REJECTED);
+    return await this.updateStatus(id, { status: BookingStatus.REJECTED });
   }
 
   async complete(id: number): Promise<Booking | null> {
-    return await this.updateStatus(id, BookingStatus.COMPLETED);
+    return await this.updateStatus(id, { status: BookingStatus.COMPLETED });
   }
 
   async checkTimeSlotAvailability(
@@ -606,8 +663,38 @@ Bu booking admin tomonidan bekor qilindi.
     time: string,
     duration: number,
   ): Promise<boolean> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
+    if (!date || !time) {
+      throw new BadRequestException('Sana va vaqt berilishi kerak');
+    }
+
+    if (!duration || duration <= 0) {
+      throw new BadRequestException("Davomiylik musbat son bo'lishi kerak");
+    }
+
     // Convert time to minutes for easier calculation
-    const [hours, minutes] = time.split(':').map(Number);
+    const timeParts = time.split(':');
+    if (timeParts.length !== 2) {
+      throw new BadRequestException(
+        "Vaqt formati noto'g'ri (HH:mm bo'lishi kerak)",
+      );
+    }
+
+    const [hours, minutes] = timeParts.map(Number);
+    if (
+      isNaN(hours) ||
+      isNaN(minutes) ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59
+    ) {
+      throw new BadRequestException("Noto'g'ri vaqt formati");
+    }
+
     const startMinutes = hours * 60 + minutes;
     const endMinutes = startMinutes + duration;
 
@@ -623,11 +710,23 @@ Bu booking admin tomonidan bekor qilindi.
 
     // Check for overlaps
     for (const booking of bookings) {
-      const [bookingHours, bookingMinutes] = booking.time
-        .split(':')
-        .map(Number);
+      if (!booking.service || !booking.time) {
+        continue;
+      }
+
+      const bookingTimeParts = booking.time.split(':');
+      if (bookingTimeParts.length !== 2) {
+        continue;
+      }
+
+      const [bookingHours, bookingMinutes] = bookingTimeParts.map(Number);
+      if (isNaN(bookingHours) || isNaN(bookingMinutes)) {
+        continue;
+      }
+
       const bookingStartMinutes = bookingHours * 60 + bookingMinutes;
-      const bookingEndMinutes = bookingStartMinutes + booking.service.duration;
+      const bookingEndMinutes =
+        bookingStartMinutes + Number(booking.service.duration || 0);
 
       // Check if time slots overlap
       if (
@@ -645,10 +744,10 @@ Bu booking admin tomonidan bekor qilindi.
 
   async updateStatus(
     id: number,
-    status: BookingStatus,
+    status: UpdateStatusDto,
   ): Promise<Booking | null> {
     const booking = await this.findOne(id);
-    
+
     if (!booking) {
       throw new BadRequestException(`Bunday ID bilan bron topilmadi: ${id}`);
     }
@@ -657,21 +756,21 @@ Bu booking admin tomonidan bekor qilindi.
     // booking'lar saqlanib qoladi, faqat client_id va barber_id null bo'ladi
 
     // Status'ni yangilash
-    await this.bookingRepository.update(id, { status });
+    await this.bookingRepository.update(id, { status: status.status });
     const updatedBooking = await this.findOne(id);
 
     // Agar status APPROVED bo'lsa, barber'ga xabar yuborish
-    if (status === BookingStatus.APPROVED && updatedBooking) {
+    if (status.status === BookingStatus.APPROVED && updatedBooking) {
       await this.notifyBarberOnApproval(updatedBooking);
     }
 
     // Agar status COMPLETED bo'lsa, barber'ga xabar yuborish
-    if (status === BookingStatus.COMPLETED && updatedBooking) {
+    if (status.status === BookingStatus.COMPLETED && updatedBooking) {
       await this.notifyBarberOnCompletion(updatedBooking);
     }
 
     // Agar status REJECTED bo'lsa, barber'ga xabar yuborish
-    if (status === BookingStatus.REJECTED && updatedBooking) {
+    if (status.status === BookingStatus.REJECTED && updatedBooking) {
       await this.notifyBarberOnRejection(updatedBooking);
     }
 
@@ -679,14 +778,28 @@ Bu booking admin tomonidan bekor qilindi.
   }
 
   async updateComment(id: number, comment: string): Promise<Booking | null> {
+    const booking = await this.findOne(id);
+    if (!booking) {
+      throw new BadRequestException(`ID ${id} bilan bron topilmadi`);
+    }
+
     await this.bookingRepository.update(id, { comment });
     return await this.findOne(id);
   }
 
   async remove(id: number): Promise<void> {
+    if (!id || isNaN(id)) {
+      throw new BadRequestException("Noto'g'ri ID format");
+    }
+
+    const booking = await this.findOne(id);
+    if (!booking) {
+      throw new BadRequestException(`ID ${id} bilan bron topilmadi`);
+    }
+
     const result = await this.bookingRepository.delete(id);
     if (result.affected === 0) {
-      throw new BadRequestException(`ID ${id} bilan bron topilmadi`);
+      throw new BadRequestException(`ID ${id} bilan bron o'chirilmadi`);
     }
   }
 
@@ -694,9 +807,13 @@ Bu booking admin tomonidan bekor qilindi.
     const { startDate, endDate } = dto;
 
     // Sana validatsiyasi
+    if (!startDate || !endDate) {
+      throw new BadRequestException('startDate va endDate berilishi kerak');
+    }
+
     if (startDate > endDate) {
       throw new BadRequestException(
-        'startDate endDate dan katta bo\'lishi mumkin emas',
+        "startDate endDate dan katta bo'lishi mumkin emas",
       );
     }
 
@@ -743,7 +860,7 @@ Bu booking admin tomonidan bekor qilindi.
     >();
 
     filteredBookings.forEach((booking) => {
-      if (!booking.barber) return;
+      if (!booking.barber || !booking.barber_id) return;
 
       const barberId = booking.barber_id;
       const existing = barberStatsMap.get(barberId);
@@ -751,9 +868,9 @@ Bu booking admin tomonidan bekor qilindi.
       if (existing) {
         existing.bookings.push(booking);
         existing.totalBookings++;
-        if (booking.status === BookingStatus.COMPLETED) {
+        if (booking.status === BookingStatus.COMPLETED && booking.service) {
           existing.completedBookings.push(booking);
-          existing.totalRevenue += Number(booking.service?.price || 0);
+          existing.totalRevenue += Number(booking.service.price || 0);
         }
       } else {
         barberStatsMap.set(barberId, {
@@ -761,10 +878,12 @@ Bu booking admin tomonidan bekor qilindi.
           bookings: [booking],
           totalBookings: 1,
           completedBookings:
-            booking.status === BookingStatus.COMPLETED ? [booking] : [],
+            booking.status === BookingStatus.COMPLETED && booking.service
+              ? [booking]
+              : [],
           totalRevenue:
-            booking.status === BookingStatus.COMPLETED
-              ? Number(booking.service?.price || 0)
+            booking.status === BookingStatus.COMPLETED && booking.service
+              ? Number(booking.service.price || 0)
               : 0,
         });
       }
@@ -806,7 +925,7 @@ Bu booking admin tomonidan bekor qilindi.
 
     // Jami daromad (barcha completed booking'lar)
     const totalRevenue = filteredBookings
-      .filter((b) => b.status === BookingStatus.COMPLETED)
+      .filter((b) => b.status === BookingStatus.COMPLETED && b.service)
       .reduce((sum, b) => sum + Number(b.service?.price || 0), 0);
 
     return {

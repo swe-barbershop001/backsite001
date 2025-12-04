@@ -30,7 +30,7 @@ export class UserController {
 
   @Get('barbers')
   @ApiOperation({ summary: 'Barcha sartaroshlarni olish (Ochiq)' })
-  @ApiResponse({ status: 200, description: 'Barcha sartaroshlar ro\'yxati' })
+  @ApiResponse({ status: 200, description: "Barcha sartaroshlar ro'yxati" })
   getBarbers() {
     return this.userService.findByRole(UserRole.BARBER);
   }
@@ -38,8 +38,11 @@ export class UserController {
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Yangi foydalanuvchi yaratish' })
-  @ApiResponse({ status: 201, description: 'Foydalanuvchi muvaffaqiyatli yaratildi' })
-  @ApiResponse({ status: 400, description: 'Noto\'g\'ri so\'rov' })
+  @ApiResponse({
+    status: 201,
+    description: 'Foydalanuvchi muvaffaqiyatli yaratildi',
+  })
+  @ApiResponse({ status: 400, description: "Noto'g'ri so'rov" })
   @ApiResponse({
     status: 403,
     description:
@@ -54,7 +57,7 @@ export class UserController {
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Barcha foydalanuvchilarni olish' })
-  @ApiResponse({ status: 200, description: 'Barcha foydalanuvchilar ro\'yxati' })
+  @ApiResponse({ status: 200, description: "Barcha foydalanuvchilar ro'yxati" })
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   findAll() {
@@ -63,7 +66,7 @@ export class UserController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'ID bo\'yicha foydalanuvchini olish' })
+  @ApiOperation({ summary: "ID bo'yicha foydalanuvchini olish" })
   @ApiParam({ name: 'id', type: 'number', description: 'Foydalanuvchi ID' })
   @ApiResponse({ status: 200, description: 'Foydalanuvchi topildi' })
   @ApiResponse({ status: 404, description: 'Foydalanuvchi topilmadi' })
@@ -77,23 +80,43 @@ export class UserController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Foydalanuvchini yangilash' })
   @ApiParam({ name: 'id', type: 'number', description: 'Foydalanuvchi ID' })
-  @ApiResponse({ status: 200, description: 'Foydalanuvchi muvaffaqiyatli yangilandi' })
+  @ApiResponse({
+    status: 200,
+    description: 'Foydalanuvchi muvaffaqiyatli yangilandi',
+  })
   @ApiResponse({ status: 404, description: 'Foydalanuvchi topilmadi' })
+  @ApiResponse({
+    status: 403,
+    description:
+      "Taqiqlangan - Barber faqat o'z ma'lumotlarini yangilashi mumkin",
+  })
   @UseGuards(AuthGuard, RoleGuard)
-  @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(+id, updateUserDto);
+  @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.BARBER)
+  update(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+    @Request() req: any,
+  ) {
+    return this.userService.update(+id, updateUserDto, req.user);
   }
 
   @Delete(':id')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Foydalanuvchini o\'chirish' })
+  @ApiOperation({ summary: "Foydalanuvchini o'chirish" })
   @ApiParam({ name: 'id', type: 'number', description: 'Foydalanuvchi ID' })
-  @ApiResponse({ status: 200, description: 'Foydalanuvchi muvaffaqiyatli o\'chirildi' })
+  @ApiResponse({
+    status: 200,
+    description: "Foydalanuvchi muvaffaqiyatli o'chirildi",
+  })
   @ApiResponse({ status: 404, description: 'Foydalanuvchi topilmadi' })
+  @ApiResponse({
+    status: 403,
+    description:
+      "Taqiqlangan - Barber faqat o'z ma'lumotlarini o'chirishi mumkin",
+  })
   @UseGuards(AuthGuard, RoleGuard)
-  @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  remove(@Param('id') id: string) {
-    return this.userService.remove(+id);
+  @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.BARBER)
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.userService.remove(+id, req.user);
   }
 }

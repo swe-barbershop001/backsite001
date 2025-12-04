@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BarberService as BarberServiceEntity } from './entities/barber-service.entity';
@@ -22,10 +22,16 @@ export class BarberServiceService {
     return await this.barberServiceRepository.find();
   }
 
-  async findOne(id: number): Promise<BarberServiceEntity | null> {
-    return await this.barberServiceRepository.findOne({
+  async findOne(id: number): Promise<BarberServiceEntity> {
+    const service = await this.barberServiceRepository.findOne({
       where: { id },
     });
+    
+    if (!service) {
+      throw new NotFoundException(`ID ${id} bilan xizmat topilmadi`);
+    }
+    
+    return service;
   }
 }
 

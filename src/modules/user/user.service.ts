@@ -98,7 +98,30 @@ export class UserService {
     return await this.userRepository.save(user);
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(
+    id: number,
+    updateUserDto: UpdateUserDto,
+    currentUser?: { id: number; role: UserRole },
+  ): Promise<User> {
+    if (!id || isNaN(id)) {
+      throw new BadRequestException('Noto\'g\'ri ID format');
+    }
+    
+    // Foydalanuvchi mavjudligini tekshirish
+    const existingUser = await this.findOne(id);
+    if (!existingUser) {
+      throw new NotFoundException(`ID ${id} bilan foydalanuvchi topilmadi`);
+    }
+    
+    // Agar role BARBER bo'lsa, faqat o'zining ma'lumotlarini yangilashi mumkin
+    if (currentUser && currentUser.role === UserRole.BARBER) {
+      if (currentUser.id !== id) {
+        throw new ForbiddenException(
+          'Barber faqat o\'zining ma\'lumotlarini yangilashi mumkin',
+        );
+      }
+    }
+
     // Unique tekshiruvlar (faqat yangilangan maydonlar uchun)
     if (updateUserDto.phone_number) {
       const existingUserByPhone = await this.userRepository.findOne({
@@ -152,7 +175,16 @@ export class UserService {
     return user;
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: number, currentUser?: { id: number; role: UserRole }): Promise<void> {
+    // Agar role BARBER bo'lsa, faqat o'zining ma'lumotlarini o'chirishi mumkin
+    if (currentUser && currentUser.role === UserRole.BARBER) {
+      if (currentUser.id !== id) {
+        throw new ForbiddenException(
+          'Barber faqat o\'zining ma\'lumotlarini o\'chirishi mumkin',
+        );
+      }
+    }
+
     await this.userRepository.delete(id);
   }
 
