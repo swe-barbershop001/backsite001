@@ -4,15 +4,11 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
 
 env:
   NODE_VERSION: '20'
   DOCKER_IMAGE_NAME: barbershop-bot
-  APP_DIR: /home/ubuntu/barbershop-bot
+  APP_DIR: ${{ vars.APP_DIR || '/home/ubuntu/barbershop-bot' }}
 
 jobs:
   # ============================================
@@ -150,43 +146,32 @@ jobs:
     name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: [setup, build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Faqat main branch'dan push bo'lganda deploy qilish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_name == 'main'
     environment:
       name: production
     steps:
+      - name: Verify deployment conditions
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "❌ ERROR: Deployment is only allowed from main branch!"
+            echo "Current branch: ${{ github.ref }}"
+            exit 1
+          fi
+          echo "✅ Branch verification passed: Deploying from main branch"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Event: ${{ github.event_name }}"
+      
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Download Docker image artifact
         uses: actions/download-artifact@v4
         with:
           name: docker-image-${{ needs.setup.outputs.sha }}
           path: ./
-
-      - name: Test SSH connection
-        run: |
-          echo "=========================================="
-          echo "SSH Connection Test"
-          echo "=========================================="
-          echo "Host: ${{ secrets.DEPLOY_HOST }}"
-          echo "User: ${{ secrets.DEPLOY_USER }}"
-          echo "Port: ${{ secrets.DEPLOY_PORT || 22 }}"
-          echo ""
-          echo "GitHub Actions IP ranges:"
-          curl -s https://api.github.com/meta | jq -r '.actions[]' 2>/dev/null || curl -s https://api.github.com/meta | grep -i "actions" || echo "Could not fetch GitHub IPs"
-          echo ""
-          echo "=========================================="
-          echo "IMPORTANT: If connection fails, check:"
-          echo "1. EC2 Security Group -> Inbound Rules"
-          echo "2. SSH (port 22) should allow:"
-          echo "   - Source: 0.0.0.0/0 (for testing)"
-          echo "   - OR GitHub Actions IP ranges"
-          echo "3. EC2 instance is running"
-          echo "4. DEPLOY_HOST is correct (Public IP or DNS)"
-          echo "=========================================="
-          echo ""
-          echo "Testing connectivity..."
-          timeout 10 bash -c "echo > /dev/tcp/${{ secrets.DEPLOY_HOST }}/${{ secrets.DEPLOY_PORT || 22 }}" 2>&1 && echo "SUCCESS: Port is reachable" || echo "WARNING: Port is not reachable - check Security Group settings"
 
       - name: Create target directory on server
         uses: appleboy/ssh-action@v1.0.3
@@ -222,18 +207,6 @@ jobs:
           debug: true
           strip_components: 0
           overwrite: true
-
-      - name: Verify SSH connection before deploy
-        run: |
-          echo "Verifying SSH connection details..."
-          echo "If connection fails, check:"
-          echo "1. DEPLOY_HOST is correct (Public IP or Public DNS)"
-          echo "2. Security Group is attached to the instance"
-          echo "3. Instance is in a public subnet with Internet Gateway"
-          echo "4. SSH service is running on the instance"
-          echo ""
-          echo "Test from your local machine:"
-          echo "ssh -i B001.pem ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} -p ${{ secrets.DEPLOY_PORT || 22 }}"
 
       - name: Deploy Docker containers
         uses: appleboy/ssh-action@v1.0.3
@@ -297,16 +270,40 @@ jobs:
             
             # Stop old containers
             echo "Stopping old containers..."
-            $COMPOSE_CMD down || echo "docker-compose down failed"
+            $COMPOSE_CMD down || true
             
-            # Load Docker image
-            IMAGE_FILE=$(ls docker-image-*.tar.gz | head -1)
+            # Load Docker image - to'g'ri faylni topish
+            IMAGE_FILE="docker-image-${{ needs.setup.outputs.sha }}.tar.gz"
             IMAGE_TAG="${{ env.DOCKER_IMAGE_NAME }}:${{ needs.setup.outputs.sha }}"
+            IMAGE_LATEST="${{ env.DOCKER_IMAGE_NAME }}:latest"
+            
+            if [ ! -f "$IMAGE_FILE" ]; then
+              echo "ERROR: Image file not found: $IMAGE_FILE"
+              echo "Available files:"
+              ls -la docker-image-*.tar.gz || echo "No image files found"
+              exit 1
+            fi
             
             echo "Loading Docker image: $IMAGE_FILE"
             gunzip -c $IMAGE_FILE | $DOCKER_CMD load
-            $DOCKER_CMD tag $IMAGE_TAG ${{ env.DOCKER_IMAGE_NAME }}:latest
-            echo "Docker image loaded successfully"
+            
+            # Yuklangan image nomini tekshirish va tag qilish
+            echo "Tagging image..."
+            $DOCKER_CMD tag $IMAGE_TAG $IMAGE_LATEST || {
+              # Agar tag mavjud bo'lmasa, yuklangan image nomini topish
+              LOADED_IMAGE=$($DOCKER_CMD images --format "{{.Repository}}:{{.Tag}}" | grep "${{ env.DOCKER_IMAGE_NAME }}" | head -1)
+              if [ -n "$LOADED_IMAGE" ]; then
+                echo "Found loaded image: $LOADED_IMAGE, tagging as $IMAGE_LATEST"
+                $DOCKER_CMD tag $LOADED_IMAGE $IMAGE_LATEST
+              else
+                echo "ERROR: Could not find loaded image"
+                $DOCKER_CMD images
+                exit 1
+              fi
+            }
+            
+            echo "Docker image loaded and tagged successfully"
+            $DOCKER_CMD images | grep "${{ env.DOCKER_IMAGE_NAME }}"
             
             # Create .env file
             echo "Creating .env file..."
@@ -322,9 +319,9 @@ jobs:
             echo "DB_USERNAME=${{ vars.DB_USERNAME }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_DATABASE=${{ vars.DB_DATABASE }}" >> .env
-            echo "DB_SYNCHRONIZE=true" >> .env
+            echo "DB_SYNCHRONIZE=${{ vars.DB_SYNCHRONIZE || 'true' }}" >> .env
             echo "PORT=${{ vars.PORT }}" >> .env
-            echo "NODE_ENV=production" >> .env
+            echo "NODE_ENV=${{ vars.NODE_ENV || 'production' }}" >> .env
             
             # Fix line endings (Windows compatibility)
             sudo apt-get update && sudo apt-get install -y dos2unix || echo "dos2unix installation failed"
@@ -335,46 +332,109 @@ jobs:
             # Update docker-compose.yml to use image instead of build
             echo "Updating docker-compose.yml..."
             IMAGE_NAME="${{ env.DOCKER_IMAGE_NAME }}:latest"
-            awk -v img="$IMAGE_NAME" '
-            /^  app:/ { in_app=1; print; next }
-            in_app && /^    build:/ { 
-              print "    image: " img
-              skip_build=1
-              next
-            }
-            skip_build && /^      (context|dockerfile):/ { next }
-            skip_build && /^    [a-z]/ { skip_build=0; in_app=0 }
-            { print }
-            ' docker-compose.yml > docker-compose.yml.tmp && mv docker-compose.yml.tmp docker-compose.yml
+            if [ -f docker-compose.yml ]; then
+              awk -v img="$IMAGE_NAME" '
+              /^  app:/ { in_app=1; print; next }
+              in_app && /^    build:/ { 
+                print "    image: " img
+                skip_build=1
+                next
+              }
+              skip_build && /^      (context|dockerfile):/ { next }
+              skip_build && /^    [a-z]/ { skip_build=0; in_app=0 }
+              { print }
+              ' docker-compose.yml > docker-compose.yml.tmp && mv docker-compose.yml.tmp docker-compose.yml
+              echo "docker-compose.yml updated successfully"
+            else
+              echo "ERROR: docker-compose.yml not found!"
+              exit 1
+            fi
             
             # Verify docker-compose config
             echo "Verifying docker-compose configuration..."
-            $COMPOSE_CMD config || echo "docker-compose config failed"
+            $COMPOSE_CMD config || {
+              echo "ERROR: docker-compose config validation failed!"
+              exit 1
+            }
             
-            # Clean up old images
+            # Clean up old images (but keep the current one)
             echo "Cleaning up old images..."
-            $DOCKER_CMD system prune -f --volumes || echo "Docker prune failed"
+            $DOCKER_CMD image prune -f || echo "Docker image prune failed"
             
-            # Build and start containers
-            echo "Building and starting containers..."
-            $COMPOSE_CMD build || echo "docker-compose build failed"
-            $COMPOSE_CMD up -d
+            # Start containers (no build needed, image already loaded)
+            echo "Starting containers..."
+            if ! $COMPOSE_CMD up -d; then
+              echo "ERROR: Failed to start containers!"
+              echo "Container status:"
+              $DOCKER_CMD ps -a
+              echo "Docker compose logs:"
+              $COMPOSE_CMD logs || true
+              echo "Docker images:"
+              $DOCKER_CMD images | grep "${{ env.DOCKER_IMAGE_NAME }}" || true
+              exit 1
+            fi
             
-            # Wait a bit for containers to start
-            sleep 10
+            # Wait for database to be ready
+            echo "Waiting for database to be ready..."
+            DB_USER="${{ vars.DB_USERNAME || 'postgres' }}"
+            timeout=60
+            counter=0
+            while ! $COMPOSE_CMD exec -T db pg_isready -U $DB_USER > /dev/null 2>&1; do
+              if [ $counter -ge $timeout ]; then
+                echo "ERROR: Database container not ready after $timeout seconds!"
+                $COMPOSE_CMD logs db
+                exit 1
+              fi
+              echo "Waiting for database... ($counter/$timeout seconds)"
+              sleep 2
+              counter=$((counter + 2))
+            done
+            echo "Database is ready!"
+            
+            # Wait a bit for app to start
+            echo "Waiting for application to start..."
+            sleep 5
             
             # Show container status
+            echo "=========================================="
             echo "Container status:"
+            echo "=========================================="
             $DOCKER_CMD ps -a
             
             # Show logs
-            echo "Application logs:"
-            $DOCKER_CMD logs $($DOCKER_CMD ps -q --filter "name=barbershop-bot") || echo "No app container logs"
+            echo "=========================================="
+            echo "Application logs (last 50 lines):"
+            echo "=========================================="
+            $COMPOSE_CMD logs --tail=50 app || echo "No app container logs"
             
-            echo "Database logs:"
-            $DOCKER_CMD logs $($DOCKER_CMD ps -q --filter "name=barbershop-db") || echo "No db container logs"
+            echo "=========================================="
+            echo "Database logs (last 20 lines):"
+            echo "=========================================="
+            $COMPOSE_CMD logs --tail=20 db || echo "No db container logs"
             
-            echo "Deployment completed successfully!"
+            # Final health check
+            echo "=========================================="
+            echo "Health check:"
+            echo "=========================================="
+            APP_CONTAINER=$($DOCKER_CMD ps -q --filter "name=barbershop-bot")
+            if [ -n "$APP_CONTAINER" ]; then
+              echo "App container is running: $APP_CONTAINER"
+              $DOCKER_CMD inspect --format='{{.State.Status}}' $APP_CONTAINER
+            else
+              echo "WARNING: App container not found!"
+            fi
+            
+            DB_CONTAINER=$($DOCKER_CMD ps -q --filter "name=barbershop-db")
+            if [ -n "$DB_CONTAINER" ]; then
+              echo "DB container is running: $DB_CONTAINER"
+              $DOCKER_CMD inspect --format='{{.State.Status}}' $DB_CONTAINER
+            else
+              echo "WARNING: DB container not found!"
+            fi
+            
+            echo "=========================================="
+            echo "✅ Deployment completed successfully!"
+            echo "=========================================="
 
       - name: Deployment summary
         run: |
