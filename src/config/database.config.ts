@@ -24,6 +24,6 @@ export const getDatabaseConfig = (
     database: configService.get<string>('DB_DATABASE', 'barbershop'),
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     synchronize: synchronize,
-    logging: nodeEnv === 'development',
+    logging: false,
   };
 };
