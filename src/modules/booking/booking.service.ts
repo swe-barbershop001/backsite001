@@ -637,12 +637,53 @@ Bu booking admin tomonidan bekor qilindi.
     });
   }
 
+  /**
+   * Yakunlanmagan booking'larni topadi (PENDING va APPROVED statusdagi)
+   */
+  async findUncompletedBookings(): Promise<Booking[]> {
+    return await this.bookingRepository.find({
+      where: {
+        status: In([BookingStatus.PENDING, BookingStatus.APPROVED]),
+      },
+      relations: ['client', 'barber', 'service'],
+      order: { date: 'ASC', time: 'ASC' },
+    });
+  }
+
   async findBookingsWithComments(): Promise<Booking[]> {
     return await this.bookingRepository.find({
       where: { comment: Not(IsNull()) },
       relations: ['client', 'barber', 'service'],
       order: { created_at: 'DESC' },
     });
+  }
+
+  /**
+   * Bir booking bilan bog'langan barcha booking'larni topadi
+   * (bir xil client_id, barber_id, date, time - statusdan qat'iy nazar)
+   */
+  async findRelatedBookings(booking: Booking): Promise<Booking[]> {
+    if (
+      !booking.client_id ||
+      !booking.barber_id ||
+      !booking.date ||
+      !booking.time
+    ) {
+      return [booking];
+    }
+
+    const relatedBookings = await this.bookingRepository.find({
+      where: {
+        client_id: booking.client_id,
+        barber_id: booking.barber_id,
+        date: booking.date,
+        time: booking.time,
+        // Statusni tekshirmaymiz, chunki tasdiqlash/yakunlash paytida status o'zgaradi
+      },
+      relations: ['client', 'barber', 'service'],
+    });
+
+    return relatedBookings.length > 0 ? relatedBookings : [booking];
   }
 
   async approve(id: number): Promise<Booking | null> {
@@ -755,21 +796,30 @@ Bu booking admin tomonidan bekor qilindi.
     // User o'chirilganda booking'lar o'chib ketmasligi uchun
     // booking'lar saqlanib qoladi, faqat client_id va barber_id null bo'ladi
 
-    // Status'ni yangilash
-    await this.bookingRepository.update(id, { status: status.status });
+    // Bog'langan barcha booking'larni topish (bir xil client_id, barber_id, date, time)
+    const relatedBookings = await this.findRelatedBookings(booking);
+
+    // Barcha bog'langan booking'larni yangilash
+    const bookingIds = relatedBookings.map((b) => b.id);
+    await this.bookingRepository.update(
+      { id: In(bookingIds) },
+      { status: status.status },
+    );
+
+    // Yangilangan birinchi booking'ni qaytarish
     const updatedBooking = await this.findOne(id);
 
-    // Agar status APPROVED bo'lsa, barber'ga xabar yuborish
+    // Agar status APPROVED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
     if (status.status === BookingStatus.APPROVED && updatedBooking) {
       await this.notifyBarberOnApproval(updatedBooking);
     }
 
-    // Agar status COMPLETED bo'lsa, barber'ga xabar yuborish
+    // Agar status COMPLETED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
     if (status.status === BookingStatus.COMPLETED && updatedBooking) {
       await this.notifyBarberOnCompletion(updatedBooking);
     }
 
-    // Agar status REJECTED bo'lsa, barber'ga xabar yuborish
+    // Agar status REJECTED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
     if (status.status === BookingStatus.REJECTED && updatedBooking) {
       await this.notifyBarberOnRejection(updatedBooking);
     }

@@ -1,10 +1,17 @@
 import { Context, InlineKeyboard } from 'grammy';
 import { UserService } from '../../user/user.service';
+import { BarberServiceService } from '../../barber-service/barber-service.service';
+import { BookingService } from '../../booking/booking.service';
+import { BookingStatus } from '../../../common/enums/booking-status.enum';
 import { getClientMainMenu, getAdminMainMenu } from '../keyboards/main.menu';
 import { UserRole } from '../../../common/enums/user.enum';
 
 export class ClientMenuHandler {
-  constructor(private userService: UserService) {}
+  constructor(
+    private userService: UserService,
+    private barberServiceService?: BarberServiceService,
+    private bookingService?: BookingService,
+  ) {}
 
   async handleMyProfile(ctx: Context) {
     const tgId = ctx.from?.id.toString();
@@ -80,6 +87,222 @@ export class ClientMenuHandler {
         reply_markup: keyboard,
         parse_mode: 'HTML',
       });
+    }
+  }
+
+  async handleAdminServices(ctx: Context) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId) return;
+
+    const user = await this.userService.findByTgId(tgId);
+    if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+      return ctx.reply('Siz admin emassiz.');
+    }
+
+    if (!this.barberServiceService) {
+      return ctx.reply('Xizmatlar servisi mavjud emas.');
+    }
+
+    // Get all available services
+    const services = await this.barberServiceService.findAll();
+    if (services.length === 0) {
+      return ctx.reply("Hozircha mavjud xizmatlar yo'q.");
+    }
+
+    // Emoji mapping fallback
+    const getServiceEmoji = (serviceName: string): string => {
+      const name = serviceName.toLowerCase();
+      if (name.includes('soch olish')) {
+        return '✂️';
+      }
+      if (name.includes('soqol olish')) {
+        return '🧔';
+      }
+      if (name.includes('soch bo\'yash') || name.includes('soch boyash')) {
+        return '🎨';
+      }
+      return '💈'; // Default emoji
+    };
+
+    const servicesMessage = `
+🛠 <b>Mavjud xizmatlar</b>
+
+━━━━━━━━━━━━━━━━━━
+
+${services.map((s, i) => `
+<b>${i+1}) ${getServiceEmoji(s.name)} ${s.name}</b>
+
+💵 <i>Narx:</i> ${s.price} so'm
+
+⏱ <i>Davomiyligi:</i> ${s.duration} daqiqa  
+
+`).join("\n")}
+
+━━━━━━━━━━━━━━━━━━
+
+`;
+
+    const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'menu_back');
+
+    // Eski xabarni yangi xabar bilan almashtirish
+    try {
+      return await ctx.editMessageText(servicesMessage, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      // Agar xabarni tahrirlab bo'lmasa, yangi xabar yuborish
+      return ctx.reply(servicesMessage, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
+  }
+
+  async handleAdminBookings(ctx: Context) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId) return;
+
+    const user = await this.userService.findByTgId(tgId);
+    if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+      return ctx.reply('Siz admin emassiz.');
+    }
+
+    if (!this.bookingService) {
+      return ctx.reply('Booking servisi mavjud emas.');
+    }
+
+    // Yakunlanmagan booking'larni topish
+    const bookings = await this.bookingService.findUncompletedBookings();
+
+    if (bookings.length === 0) {
+      const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'menu_back');
+      const message = "📋 Yakunlanmagan bookinglar yo'q.\n\nBarcha bookinglar yakunlangan.";
+      
+      try {
+        return await ctx.editMessageText(message, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML',
+        });
+      } catch (error) {
+        return ctx.reply(message, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML',
+        });
+      }
+    }
+
+    // Format date for display
+    const formatDate = (dateStr: string) => {
+      const dateObj = new Date(dateStr + 'T00:00:00');
+      return dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    };
+
+    // Booking'larni guruhlash (bir xil client_id, barber_id, date, time)
+    const groupedBookings = new Map<string, typeof bookings>();
+    bookings.forEach((booking) => {
+      const key = `${booking.client_id}_${booking.barber_id}_${booking.date}_${booking.time}`;
+      if (!groupedBookings.has(key)) {
+        groupedBookings.set(key, []);
+      }
+      groupedBookings.get(key)!.push(booking);
+    });
+
+    // Har bir guruh uchun alohida xabar yuborish
+    let index = 0;
+    for (const [key, groupBookings] of groupedBookings) {
+      const firstBooking = groupBookings[0];
+      if (!firstBooking.client || !firstBooking.barber) continue;
+
+      index++;
+      
+      // Status display
+      let statusDisplay = '';
+      if (firstBooking.status === BookingStatus.APPROVED) {
+        statusDisplay = '🟢 APPROVED';
+      } else {
+        statusDisplay = '🟡 PENDING';
+      }
+
+      // Xizmatlar ro'yxati
+      const servicesList = groupBookings
+        .map((b) => b.service)
+        .filter((s) => s !== null)
+        .map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`)
+        .join('\n');
+
+      const totalPrice = groupBookings
+        .map((b) => b.service)
+        .filter((s) => s !== null)
+        .reduce((sum, s) => sum + Number(s.price), 0);
+
+      const totalDuration = groupBookings
+        .map((b) => b.service)
+        .filter((s) => s !== null)
+        .reduce((sum, s) => sum + s.duration, 0);
+
+      const formattedDate = formatDate(firstBooking.date);
+
+      const message = `<b>📋 Yakunlanmagan booking #${index}</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${firstBooking.client.name}${firstBooking.client.tg_username ? ` (@${firstBooking.client.tg_username})` : ''}
+📞 <b>Telefon:</b> ${firstBooking.client.phone_number || "Yo'q"}
+👨‍🔧 <b>Barber:</b> ${firstBooking.barber.name}
+
+💈 <b>Xizmatlar:</b>
+${servicesList}
+
+💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${firstBooking.time}
+📋 <b>Status:</b> ${statusDisplay}
+
+━━━━━━━━━━━━━━━━━━
+`;
+
+      // Har bir guruh uchun inline keyboard yaratish
+      const keyboard = new InlineKeyboard();
+      
+      if (firstBooking.status === BookingStatus.PENDING) {
+        keyboard
+          .text('✅ Tasdiqlash', `approve_booking_${firstBooking.id}`)
+          .text('❌ Bekor qilish', `reject_booking_${firstBooking.id}`)
+          .row();
+      } else if (firstBooking.status === BookingStatus.APPROVED) {
+        keyboard
+          .text('✅ Yakunlash', `complete_booking_${firstBooking.id}`)
+          .row();
+      }
+      
+      keyboard.text('⬅️ Ortga qaytish', 'menu_back');
+
+      // Birinchi booking uchun xabar va keyboard yuborish
+      if (index === 1) {
+        try {
+          await ctx.editMessageText(message, {
+            reply_markup: keyboard,
+            parse_mode: 'HTML',
+          });
+        } catch (error) {
+          await ctx.reply(message, {
+            reply_markup: keyboard,
+            parse_mode: 'HTML',
+          });
+        }
+      } else {
+        // Qolgan booking'lar uchun alohida xabar yuborish
+        await ctx.reply(message, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML',
+        });
+      }
     }
   }
 }
