@@ -44,7 +44,7 @@ export class RegistrationHandler {
         // Rol bo'yicha xabar va menyu ko'rsatish
         const roleMessages = {
           [UserRole.CLIENT]: {
-            message: `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\n✅ Sizning rolingiz: <b>Mijoz (Client)</b>\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
+            message: `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
             menu: getClientMainMenu(),
             parseMode: undefined,
           },
@@ -130,8 +130,8 @@ Quyidagi bo'limlardan birini tanlang:
       if (user.role === UserRole.CLIENT) {
         const menu = getClientMainMenu();
         return ctx.reply(
-          `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\n✅ Sizning rolingiz: <b>Mijoz (Client)</b>\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
-          { reply_markup: menu, parse_mode: 'HTML' },
+          `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
+          { reply_markup: menu },
         );
       } else if (user.role === UserRole.BARBER) {
         const menu = getBarberMainMenu();

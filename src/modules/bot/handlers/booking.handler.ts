@@ -618,51 +618,8 @@ Quyidagi vaqtlardan birini tanlang:
       }
     }
 
-    // Check for APPROVED bookings without comments
-    const approvedWithoutComment = bookings.find(
-      (b) => b.status === BookingStatus.APPROVED && !b.comment,
-    );
-
-    if (approvedWithoutComment && ctx.from) {
-      // Ask for comment for this booking
-      this.bookingStates.set(ctx.from.id, {
-        step: 'comment',
-        bookingIds: [approvedWithoutComment.id],
-      });
-
-      const serviceName = approvedWithoutComment.service?.name || 'xizmat';
-      const message = `
-<b>✅ Xizmat yakunlandi!</b>
-
-━━━━━━━━━━━━━━━━━━
-
-💈 <b>Xizmat:</b> ${serviceName}
-👨‍🔧 <b>Barber:</b> ${approvedWithoutComment.barber?.name || 'Noma\'lum'}
-
-━━━━━━━━━━━━━━━━━━
-
-💬 <b>Xizmat haqida fikringizni yozing:</b>
-
-Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
-`;
-
-      const skipKeyboard = new InlineKeyboard().text(
-        '⏭️ O\'tkazib yuborish',
-        'skip_comment',
-      );
-
-      try {
-        return await ctx.editMessageText(message, {
-          reply_markup: skipKeyboard,
-          parse_mode: 'HTML',
-        });
-      } catch (error) {
-        return ctx.reply(message, {
-          reply_markup: skipKeyboard,
-          parse_mode: 'HTML',
-        });
-      }
-    }
+    // Comment request faqat booking yakunlanganda avtomatik yuboriladi
+    // "Bronlarim" tugmasini bosganda faqat booking'lar ro'yxati ko'rsatiladi
 
     // Format date for display
     const formatDate = (dateStr: string) => {
