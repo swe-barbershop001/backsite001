@@ -116,7 +116,7 @@ export class UserController {
         ],
       }),
     )
-    file?: Express.Multer.File,
+    file?: Express.Multer.File | undefined,
   ) {
     // Agar file yuborilgan bo'lsa, file path'ni DTO'ga qo'shish
     if (file) {
@@ -219,7 +219,7 @@ export class UserController {
         ],
       }),
     )
-    file?: Express.Multer.File,
+    file?: Express.Multer.File | undefined,
   ) {
     // Agar file yuborilgan bo'lsa, eski faylni o'chirish va yangi file path'ni qo'shish
     if (file) {
