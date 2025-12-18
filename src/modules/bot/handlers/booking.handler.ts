@@ -577,54 +577,18 @@ Quyidagi vaqtlardan birini tanlang:
       this.bookingStates.delete(ctx.from.id);
 
       // Admin'larga xabar booking.service.ts ichidagi notifyAdmins metodi orqali yuboriladi
-
       // Barber'ga xabar booking.service.ts ichidagi notifyBarber() metodi orqali yuboriladi
+      // Client'ga xabar booking.service.ts ichidagi notifyClient() metodi orqali yuboriladi
       // Bu yerda qayta yuborish shart emas
 
-      const totalPrice = selectedServices.reduce(
-        (sum, s) => sum + Number(s.price),
-        0,
-      );
-
-      // Format date for display
-      const dateObj = new Date(date + 'T00:00:00');
-      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-
-      // Status (client booking yaratganda har doim PENDING bo'ladi)
-      const statusDisplay = '🟡 <b>PENDING</b>';
-
-      // Premium HTML card message
-      const message = `
-<b>✅ Booking muvaffaqiyatli yaratildi!</b>
-
-<b>👨‍🔧 Barber:</b> ${barber.name}
-
-<b>💈 Xizmatlar:</b>
-${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} min)`).join('\n')}
-
-<b>💵 Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
-<b>📅 Sana:</b> ${formattedDate}
-<b>🕒 Vaqt:</b> ${time}
-
-<b>📌 Status:</b> ${statusDisplay}
-
-━━━━━━━━━━━━━━━━━━
-
-⏳ <b>Admin tasdiqlashini kutmoqdasiz...</b>
-
-Xizmat yakunlangandan so'ng sizdan fikringizni so'rashadi.
-`;
-
       const menu = getClientMainMenu();
-      return ctx.reply(message, {
-        reply_markup: menu,
-        parse_mode: 'HTML',
-      });
+      return ctx.reply(
+        '✅ Booking muvaffaqiyatli yaratildi!\n\nSizga xabar yuborildi. Asosiy menyuga qaytingiz.',
+        {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        },
+      );
     } catch (error) {
       return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     }
@@ -722,6 +686,8 @@ Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
         statusDisplay = '🔴 REJECTED';
       } else if (booking.status === BookingStatus.CANCELLED) {
         statusDisplay = '⚫ CANCELLED';
+      } else if (booking.status === BookingStatus.COMPLETED) {
+        statusDisplay = '✅ COMPLETED';
       } else {
         statusDisplay = '🟡 PENDING';
       }
