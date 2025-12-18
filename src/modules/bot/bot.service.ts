@@ -296,23 +296,7 @@ export class BotService implements OnModuleInit {
               reply_markup: keyboard,
             });
             
-            // Client'ga xabar yuborish
-            if (bookingWithRelations.client?.tg_id) {
-              const clientMessage = `
-<b>✅ Booking tasdiqlandi!</b>
-
-━━━━━━━━━━━━━━━━━━
-
-📅 <b>Sana:</b> ${bookingWithRelations.date}
-🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
-👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
-
-━━━━━━━━━━━━━━━━━━
-
-Xizmat vaqtida kelishingizni so'raymiz! 🎉
-`;
-              await this.sendMessage(bookingWithRelations.client.tg_id, clientMessage, { parse_mode: 'HTML' });
-            }
+            // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
           } else {
             await ctx.editMessageText(
               ctx.callbackQuery.message?.text?.replace('🟡 PENDING', '🟢 APPROVED') || ctx.callbackQuery.message?.text || '',
@@ -352,24 +336,7 @@ Xizmat vaqtida kelishingizni so'raymiz! 🎉
             { parse_mode: 'HTML' }
           );
           
-          // Client'ga xabar yuborish
-          const bookingWithRelations = await this.bookingService.findOne(bookingId);
-          if (bookingWithRelations?.client?.tg_id) {
-            const clientMessage = `
-<b>❌ Booking bekor qilindi</b>
-
-━━━━━━━━━━━━━━━━━━
-
-📅 <b>Sana:</b> ${bookingWithRelations.date}
-🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
-👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
-
-━━━━━━━━━━━━━━━━━━
-
-Afsuski, sizning bookingingiz bekor qilindi. Iltimos, boshqa vaqtni tanlang yoki admin bilan bog'laning.
-`;
-            await this.sendMessage(bookingWithRelations.client.tg_id, clientMessage, { parse_mode: 'HTML' });
-          }
+          // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
         } else {
           await ctx.answerCallbackQuery({ text: 'Booking topilmadi.', show_alert: true });
         }
@@ -411,25 +378,7 @@ Afsuski, sizning bookingingiz bekor qilindi. Iltimos, boshqa vaqtni tanlang yoki
               parse_mode: 'HTML',
             });
             
-            // Client'ga xabar yuborish
-            if (bookingWithRelations.client?.tg_id) {
-              const clientMessage = `
-<b>✅ Xizmat yakunlandi!</b>
-
-━━━━━━━━━━━━━━━━━━
-
-📅 <b>Sana:</b> ${bookingWithRelations.date}
-🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
-👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
-
-━━━━━━━━━━━━━━━━━━
-
-Xizmat muvaffaqiyatli yakunlandi! Xizmatimizdan foydalanganingiz uchun rahmat! 🎉
-
-Iltimos, xizmat haqida fikringizni bildiring.
-`;
-              await this.sendMessage(bookingWithRelations.client.tg_id, clientMessage, { parse_mode: 'HTML' });
-            }
+            // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
           } else {
             await ctx.editMessageText(
               ctx.callbackQuery.message?.text?.replace('🟢 APPROVED', '✅ COMPLETED') || ctx.callbackQuery.message?.text || '',

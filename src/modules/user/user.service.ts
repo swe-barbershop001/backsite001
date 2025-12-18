@@ -23,6 +23,14 @@ export class UserService {
     private authService: AuthService,
   ) {}
 
+  /**
+   * Normalize tg_username by removing leading '@' symbol if present
+   */
+  private normalizeTgUsername(tg_username?: string): string | undefined {
+    if (!tg_username) return undefined;
+    return tg_username.startsWith('@') ? tg_username.slice(1) : tg_username;
+  }
+
   async create(createUserDto: CreateUserDto, currentUser?: { id: number; role: UserRole }): Promise<User> {
     // ADMIN role yaratishni faqat SUPER_ADMIN qila oladi
     if (createUserDto.role === UserRole.ADMIN) {
@@ -40,6 +48,11 @@ export class UserService {
           'BARBER role\'ga ega foydalanuvchini faqat ADMIN yoki SUPER_ADMIN yarata oladi',
         );
       }
+    }
+
+    // Normalize tg_username (remove leading '@' if present)
+    if (createUserDto.tg_username) {
+      createUserDto.tg_username = this.normalizeTgUsername(createUserDto.tg_username);
     }
 
     // Unique tekshiruvlar
@@ -99,6 +112,11 @@ export class UserService {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+    // Normalize tg_username (remove leading '@' if present)
+    if (updateUserDto.tg_username) {
+      updateUserDto.tg_username = this.normalizeTgUsername(updateUserDto.tg_username);
+    }
+
     // Unique tekshiruvlar (faqat yangilangan maydonlar uchun)
     if (updateUserDto.phone_number) {
       const existingUserByPhone = await this.userRepository.findOne({

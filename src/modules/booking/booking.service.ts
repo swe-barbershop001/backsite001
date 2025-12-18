@@ -354,192 +354,214 @@ ${services
     }
   }
 
-  private async notifyBarberOnApproval(booking: Booking): Promise<void> {
-    try {
-      if (!booking.barber) {
-        return;
-      }
+  /**
+   * Format date for display in notifications
+   */
+  private formatDateForDisplay(date: string): string {
+    const dateObj = new Date(date + 'T00:00:00');
+    return dateObj.toLocaleDateString('uz-UZ', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
 
-      const barber = booking.barber;
-
-      // Barber'ning tg_id va tg_username bo'lishini tekshirish
-      if (!barber.tg_id || !barber.tg_username) {
-        return;
-      }
-
-      const client = booking.client;
-      const service = booking.service;
-
-      // Format date for display
-      const dateObj = new Date(booking.date + 'T00:00:00');
-      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-
-      const barberMessage = `
-<b>✅ Booking tasdiqlandi!</b>
-
-━━━━━━━━━━━━━━━━━━
-
-👤 <b>Mijoz:</b> ${client.name || client.phone_number}
-${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
-${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
-💈 <b>Xizmat:</b> ${service.name} – ${Number(service.price).toLocaleString()} so'm (${service.duration} daqiqa)
-
-📅 <b>Sana:</b> ${formattedDate}
-🕒 <b>Vaqt:</b> ${booking.time}
-📋 <b>Status:</b> 🟢 APPROVED
-
-━━━━━━━━━━━━━━━━━━
-
-Xizmatni vaqtida bajarishni unutmang! 🎉
-`;
-
-      // Barber'ga Telegram orqali xabar yuborish
-      try {
-        await this.botService.sendMessage(barber.tg_id, barberMessage, {
-          parse_mode: 'HTML',
-        });
-      } catch (error: any) {
-        // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
-        if (!error?.description?.includes('chat not found')) {
-          console.error(
-            `Failed to send approval message to barber ${barber.id}:`,
-            error,
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Failed to notify barber on approval:', error);
+  /**
+   * Get status display text and emoji for barber notifications
+   */
+  private getStatusDisplayForBarber(status: BookingStatus): { title: string; emoji: string; statusText: string; footer?: string } {
+    switch (status) {
+      case BookingStatus.PENDING:
+        return {
+          title: '⏳ Booking kutilyapti',
+          emoji: '🟡',
+          statusText: 'PENDING',
+          footer: 'Admin tasdiqlashini kutmoqda...',
+        };
+      case BookingStatus.APPROVED:
+        return {
+          title: '✅ Booking tasdiqlandi!',
+          emoji: '🟢',
+          statusText: 'APPROVED',
+          footer: 'Xizmatni vaqtida bajarishni unutmang! 🎉',
+        };
+      case BookingStatus.REJECTED:
+        return {
+          title: '❌ Booking bekor qilindi!',
+          emoji: '❌',
+          statusText: 'REJECTED',
+          footer: 'Bu booking admin tomonidan bekor qilindi.',
+        };
+      case BookingStatus.CANCELLED:
+        return {
+          title: '🚫 Booking bekor qilindi!',
+          emoji: '🚫',
+          statusText: 'CANCELLED',
+          footer: 'Bu booking bekor qilindi.',
+        };
+      case BookingStatus.COMPLETED:
+        return {
+          title: '✅ Booking yakunlandi!',
+          emoji: '✅',
+          statusText: 'COMPLETED',
+          footer: 'Xizmat muvaffaqiyatli yakunlandi! 🎉',
+        };
+      default:
+        return {
+          title: '📋 Booking status o\'zgartirildi',
+          emoji: '📋',
+          statusText: status.toUpperCase(),
+        };
     }
   }
 
-  private async notifyBarberOnCompletion(booking: Booking): Promise<void> {
-    try {
-      if (!booking.barber) {
-        return;
-      }
-
-      const barber = booking.barber;
-
-      // Barber'ning tg_id va tg_username bo'lishini tekshirish
-      if (!barber.tg_id || !barber.tg_username) {
-        return;
-      }
-
-      const client = booking.client;
-      const service = booking.service;
-
-      // Format date for display
-      const dateObj = new Date(booking.date + 'T00:00:00');
-      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-
-      const barberMessage = `
-<b>✅ Booking yakunlandi!</b>
-
-━━━━━━━━━━━━━━━━━━
-
-👤 <b>Mijoz:</b> ${client.name || client.phone_number}
-${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
-${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
-💈 <b>Xizmat:</b> ${service.name} – ${Number(service.price).toLocaleString()} so'm (${service.duration} daqiqa)
-
-📅 <b>Sana:</b> ${formattedDate}
-🕒 <b>Vaqt:</b> ${booking.time}
-📋 <b>Status:</b> ✅ COMPLETED
-${booking.comment ? `💬 <b>Mijoz izohi:</b> ${booking.comment}\n` : ''}
-━━━━━━━━━━━━━━━━━━
-
-Xizmat muvaffaqiyatli yakunlandi! 🎉
-`;
-
-      // Barber'ga Telegram orqali xabar yuborish
-      try {
-        await this.botService.sendMessage(barber.tg_id, barberMessage, {
-          parse_mode: 'HTML',
-        });
-      } catch (error: any) {
-        // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
-        if (!error?.description?.includes('chat not found')) {
-          console.error(
-            `Failed to send completion message to barber ${barber.id}:`,
-            error,
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Failed to notify barber on completion:', error);
+  /**
+   * Get status display text and emoji for client notifications
+   */
+  private getStatusDisplayForClient(status: BookingStatus): { title: string; emoji: string; statusText: string; footer?: string } {
+    switch (status) {
+      case BookingStatus.PENDING:
+        return {
+          title: '⏳ Booking yaratildi',
+          emoji: '🟡',
+          statusText: 'PENDING',
+          footer: '⏳ Admin tasdiqlashini kutmoqdasiz...',
+        };
+      case BookingStatus.APPROVED:
+        return {
+          title: '✅ Booking tasdiqlandi!',
+          emoji: '🟢',
+          statusText: 'APPROVED',
+          footer: 'Xizmat vaqtida kelishingizni so\'raymiz! 🎉',
+        };
+      case BookingStatus.REJECTED:
+        return {
+          title: '❌ Booking bekor qilindi',
+          emoji: '❌',
+          statusText: 'REJECTED',
+          footer: 'Afsus, sizning bookingingiz bekor qilindi.',
+        };
+      case BookingStatus.CANCELLED:
+        return {
+          title: '🚫 Booking bekor qilindi',
+          emoji: '🚫',
+          statusText: 'CANCELLED',
+          footer: 'Sizning bookingingiz bekor qilindi.',
+        };
+      case BookingStatus.COMPLETED:
+        return {
+          title: '✅ Booking yakunlandi!',
+          emoji: '✅',
+          statusText: 'COMPLETED',
+          footer: 'Xizmat muvaffaqiyatli yakunlandi! 🎉',
+        };
+      default:
+        return {
+          title: '📋 Booking status o\'zgartirildi',
+          emoji: '📋',
+          statusText: status.toUpperCase(),
+        };
     }
   }
 
-  private async notifyBarberOnRejection(booking: Booking): Promise<void> {
+  /**
+   * Notify barber about booking status change
+   */
+  private async notifyBarberOnStatusChange(booking: Booking, status: BookingStatus): Promise<void> {
     try {
-      if (!booking.barber) {
+      if (!booking.barber || !booking.barber.tg_id) {
         return;
       }
 
       const barber = booking.barber;
-
-      // Barber'ning tg_id va tg_username bo'lishini tekshirish
-      if (!barber.tg_id || !barber.tg_username) {
-        return;
-      }
-
       const client = booking.client;
       const service = booking.service;
-
-      // Format date for display
-      const dateObj = new Date(booking.date + 'T00:00:00');
-      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
+      const statusDisplay = this.getStatusDisplayForBarber(status);
+      const formattedDate = this.formatDateForDisplay(booking.date);
 
       const barberMessage = `
-<b>❌ Booking bekor qilindi!</b>
+<b>${statusDisplay.title}</b>
 
 ━━━━━━━━━━━━━━━━━━
 
-👤 <b>Mijoz:</b> ${client.name || client.phone_number}
-${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
-${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
-💈 <b>Xizmat:</b> ${service.name} – ${Number(service.price).toLocaleString()} so'm (${service.duration} daqiqa)
+👤 <b>Mijoz:</b> ${client?.name || client?.phone_number || 'Noma\'lum'}
+${client?.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
+${client?.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+💈 <b>Xizmat:</b> ${service?.name || 'Noma\'lum'} – ${service ? Number(service.price).toLocaleString() : '0'} so'm (${service?.duration || 0} daqiqa)
 
 📅 <b>Sana:</b> ${formattedDate}
 🕒 <b>Vaqt:</b> ${booking.time}
-📋 <b>Status:</b> ❌ REJECTED
-
+📋 <b>Status:</b> ${statusDisplay.emoji} ${statusDisplay.statusText}
+${booking.comment && status === BookingStatus.COMPLETED ? `💬 <b>Mijoz izohi:</b> ${booking.comment}\n` : ''}
 ━━━━━━━━━━━━━━━━━━
 
-Bu booking admin tomonidan bekor qilindi.
+${statusDisplay.footer || ''}
 `;
 
-      // Barber'ga Telegram orqali xabar yuborish
       try {
         await this.botService.sendMessage(barber.tg_id, barberMessage, {
           parse_mode: 'HTML',
         });
       } catch (error: any) {
-        // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
         if (!error?.description?.includes('chat not found')) {
           console.error(
-            `Failed to send rejection message to barber ${barber.id}:`,
+            `Failed to send status change message to barber ${barber.id}:`,
             error,
           );
         }
       }
     } catch (error) {
-      console.error('Failed to notify barber on rejection:', error);
+      console.error('Failed to notify barber on status change:', error);
+    }
+  }
+
+  /**
+   * Notify client about booking status change
+   */
+  private async notifyClientOnStatusChange(booking: Booking, status: BookingStatus): Promise<void> {
+    try {
+      if (!booking.client || !booking.client.tg_id) {
+        return;
+      }
+
+      const client = booking.client;
+      const barber = booking.barber;
+      const service = booking.service;
+      const statusDisplay = this.getStatusDisplayForClient(status);
+      const formattedDate = this.formatDateForDisplay(booking.date);
+
+      const clientMessage = `
+<b>${statusDisplay.title}</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👨‍🔧 <b>Barber:</b> ${barber?.name || 'Noma\'lum'}
+💈 <b>Xizmat:</b> ${service?.name || 'Noma\'lum'} – ${service ? Number(service.price).toLocaleString() : '0'} so'm
+
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+📋 <b>Status:</b> ${statusDisplay.emoji} ${statusDisplay.statusText}
+
+━━━━━━━━━━━━━━━━━━
+
+${statusDisplay.footer || ''}
+`;
+
+      try {
+        await this.botService.sendMessage(client.tg_id, clientMessage, {
+          parse_mode: 'HTML',
+        });
+      } catch (error: any) {
+        if (!error?.description?.includes('chat not found')) {
+          console.error(
+            `Failed to send status change message to client ${client.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify client on status change:', error);
     }
   }
 
@@ -660,20 +682,15 @@ Bu booking admin tomonidan bekor qilindi.
     await this.bookingRepository.update(id, { status });
     const updatedBooking = await this.findOne(id);
 
-    // Agar status APPROVED bo'lsa, barber'ga xabar yuborish
-    if (status === BookingStatus.APPROVED && updatedBooking) {
-      await this.notifyBarberOnApproval(updatedBooking);
+    if (!updatedBooking) {
+      return null;
     }
 
-    // Agar status COMPLETED bo'lsa, barber'ga xabar yuborish
-    if (status === BookingStatus.COMPLETED && updatedBooking) {
-      await this.notifyBarberOnCompletion(updatedBooking);
-    }
-
-    // Agar status REJECTED bo'lsa, barber'ga xabar yuborish
-    if (status === BookingStatus.REJECTED && updatedBooking) {
-      await this.notifyBarberOnRejection(updatedBooking);
-    }
+    // Barber va client'larga status o'zgarishini bildirish (agar tg_id bo'lsa)
+    await Promise.all([
+      this.notifyBarberOnStatusChange(updatedBooking, status),
+      this.notifyClientOnStatusChange(updatedBooking, status),
+    ]);
 
     return updatedBooking;
   }
