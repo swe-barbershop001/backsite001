@@ -866,15 +866,31 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
     }
   }
 
-  async handleSkipComment(ctx: Context) {
+  /**
+   * Set comment request state for a user
+   */
+  setCommentRequestState(userId: number, bookingIds: number[]): void {
+    this.bookingStates.set(userId, {
+      step: 'comment',
+      bookingIds: bookingIds,
+    });
+  }
+
+  async handleSkipComment(ctx: Context, bookingIds?: number[]) {
     const userId = ctx.from?.id;
     if (!userId) return;
 
-    const state = this.bookingStates.get(userId);
-    if (!state || state.step !== 'comment') return;
-
-    // Clear booking state
-    this.bookingStates.delete(userId);
+    // Agar bookingIds berilgan bo'lsa (comment request'dan kelgan), state'ni o'rnatish
+    if (bookingIds && bookingIds.length > 0) {
+      // State o'rnatilgan bo'lishi mumkin, lekin skip qilamiz, shuning uchun state'ni tozalaymiz
+      this.bookingStates.delete(userId);
+    } else {
+      // Legacy: state'dan o'qish
+      const state = this.bookingStates.get(userId);
+      if (!state || state.step !== 'comment') return;
+      // Clear booking state
+      this.bookingStates.delete(userId);
+    }
 
     const menu = getClientMainMenu();
     return ctx.reply(

@@ -115,6 +115,8 @@ export class BookingService {
       await this.notifyAdmins(bookings[0], bookings);
       // Barber'ga xabar yuborish (agar tg_id va tg_username bo'lsa)
       await this.notifyBarber(bookings[0], bookings);
+      // Client'ga xabar yuborish (agar tg_id bo'lsa)
+      await this.notifyClient(bookings[0], bookings);
     }
 
     // Agar bitta servis bo'lsa, bitta booking qaytarish, aks holda array
@@ -387,6 +389,107 @@ ${services
     }
   }
 
+  private async notifyClient(
+    booking: Booking,
+    allBookings?: Booking[],
+  ): Promise<void> {
+    try {
+      // Booking ma'lumotlarini olish
+      const bookingWithRelations = await this.bookingRepository.findOne({
+        where: { id: booking.id },
+        relations: ['client', 'barber', 'service'],
+      });
+
+      if (!bookingWithRelations) {
+        return;
+      }
+
+      const client = bookingWithRelations.client;
+      const barber = bookingWithRelations.barber;
+
+      if (!client || !barber) {
+        return;
+      }
+
+      // Client'ning tg_id bo'lishini tekshirish
+      if (!client.tg_id) {
+        return;
+      }
+
+      // Agar bir nechta booking bo'lsa, barcha servislarni olish
+      let services: (typeof bookingWithRelations.service)[] = [
+        bookingWithRelations.service,
+      ];
+      if (allBookings && allBookings.length > 1) {
+        const serviceIds = allBookings.map((b) => b.service_id);
+        const foundServices = await Promise.all(
+          serviceIds.map((id) => this.barberServiceService.findOne(id)),
+        );
+        services = foundServices.filter(
+          (s): s is typeof bookingWithRelations.service => s !== null,
+        );
+      }
+
+      const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
+      const totalDuration = services.reduce(
+        (sum, s) => sum + Number(s.duration),
+        0,
+      );
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const clientMessage = `
+<b>✅ Booking muvaffaqiyatli yaratildi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👨‍🔧 <b>Barber:</b> ${barber.name}
+💈 <b>Xizmatlar:</b>
+${services
+  .map(
+    (s) =>
+      `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`,
+  )
+  .join('\n')}
+
+💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+📋 <b>Status:</b> 🟡 PENDING
+
+━━━━━━━━━━━━━━━━━━
+
+⏳ <b>Admin tasdiqlashini kutmoqdasiz...</b>
+
+Xizmat yakunlangandan so'ng sizdan fikringizni so'rashadi.
+`;
+
+      // Client'ga Telegram orqali xabar yuborish
+      try {
+        await this.botService.sendMessage(client.tg_id, clientMessage, {
+          parse_mode: 'HTML',
+        });
+      } catch (error: any) {
+        // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
+        if (!error?.description?.includes('chat not found')) {
+          console.error(
+            `Failed to send message to client ${client.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify client:', error);
+    }
+  }
+
   private async notifyBarberOnApproval(booking: Booking): Promise<void> {
     try {
       if (!booking || !booking.barber) {
@@ -431,6 +534,24 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
 📋 <b>Status:</b> 🟢 APPROVED
 
 ━━━━━━━━━━━━━━━━━━
+`;
+
+      try {
+        await this.botService.sendMessage(barber.tg_id, barberMessage, {
+          parse_mode: 'HTML',
+        });
+      } catch (error: any) {
+        if (!error?.description?.includes('chat not found')) {
+          console.error(
+            `Failed to send message to barber ${barber.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify barber on approval:', error);
+    }
+  }
 
   /**
    * Get status display text and emoji for barber notifications
@@ -476,7 +597,7 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
         return {
           title: '📋 Booking status o\'zgartirildi',
           emoji: '📋',
-          statusText: status.toUpperCase(),
+          statusText: String(status).toUpperCase(),
         };
     }
   }
@@ -525,7 +646,7 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
         return {
           title: '📋 Booking status o\'zgartirildi',
           emoji: '📋',
-          statusText: status.toUpperCase(),
+          statusText: String(status).toUpperCase(),
         };
     }
   }
@@ -583,7 +704,7 @@ ${statusDisplay.footer || ''}
 `;
 
       try {
-        await this.botService.sendMessage(barber.tg_id, barberMessage, {
+        await this.botService.sendMessage(barber.tg_id!, barberMessage, {
           parse_mode: 'HTML',
         });
       } catch (error: any) {
@@ -637,7 +758,7 @@ ${statusDisplay.footer || ''}
 `;
 
       try {
-        await this.botService.sendMessage(client.tg_id, clientMessage, {
+        await this.botService.sendMessage(client.tg_id!, clientMessage, {
           parse_mode: 'HTML',
         });
       } catch (error: any) {
@@ -650,6 +771,80 @@ ${statusDisplay.footer || ''}
       }
     } catch (error) {
       console.error('Failed to notify client on status change:', error);
+    }
+  }
+
+  /**
+   * Request comment from client when booking is completed
+   */
+  private async requestCommentFromClient(booking: Booking): Promise<void> {
+    try {
+      if (!booking || !booking.client || !booking.client.tg_id) {
+        return;
+      }
+
+      // Agar allaqachon izoh bo'lsa, so'ramaymiz
+      if (booking.comment) {
+        return;
+      }
+
+      const client = booking.client;
+      const barber = booking.barber;
+      const service = booking.service;
+
+      if (!barber || !service) {
+        return;
+      }
+
+      // Bog'langan barcha booking'larni topish (bir xil client_id, barber_id, date, time)
+      const relatedBookings = await this.findRelatedBookings(booking);
+      const bookingIds = relatedBookings.map((b) => b.id);
+
+      const formattedDate = this.formatDateForDisplay(booking.date);
+
+      const commentRequestMessage = `
+<b>✅ Xizmat yakunlandi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+💈 <b>Xizmat:</b> ${service.name || 'Noma\'lum'}
+👨‍🔧 <b>Barber:</b> ${barber.name || 'Noma\'lum'}
+
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+
+━━━━━━━━━━━━━━━━━━
+
+💬 <b>Xizmat haqida fikringizni yozing:</b>
+
+Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
+`;
+
+      // Skip tugmasi bilan keyboard yaratish
+      const keyboard = new InlineKeyboard();
+      keyboard.text('⏭️ O\'tkazib yuborish', `skip_comment_${bookingIds.join(',')}`);
+
+      try {
+        await this.botService.sendMessage(client.tg_id!, commentRequestMessage, {
+          parse_mode: 'HTML',
+          reply_markup: keyboard,
+        });
+
+        // Comment state'ni o'rnatish - foydalanuvchi matn yuborganida handle qilish uchun
+        const userId = parseInt(client.tg_id!);
+        if (!isNaN(userId)) {
+          this.botService.setCommentRequestState(userId, bookingIds);
+        }
+      } catch (error: any) {
+        if (!error?.description?.includes('chat not found')) {
+          console.error(
+            `Failed to send comment request to client ${client.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to request comment from client:', error);
     }
   }
 
@@ -883,6 +1078,11 @@ ${statusDisplay.footer || ''}
       this.notifyBarberOnStatusChange(updatedBooking, status.status),
       this.notifyClientOnStatusChange(updatedBooking, status.status),
     ]);
+
+    // Agar status COMPLETED bo'lsa, client'dan izoh so'rash
+    if (status.status === BookingStatus.COMPLETED) {
+      await this.requestCommentFromClient(updatedBooking);
+    }
 
     return updatedBooking;
   }

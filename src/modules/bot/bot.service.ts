@@ -261,7 +261,15 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
-    // Skip comment callback
+    // Skip comment callback (with booking IDs)
+    this.bot.callbackQuery(/^skip_comment_(.+)$/, async (ctx) => {
+      const bookingIdsStr = ctx.match[1];
+      const bookingIds = bookingIdsStr.split(',').map((id) => parseInt(id.trim())).filter((id) => !isNaN(id));
+      await this.bookingHandler.handleSkipComment(ctx, bookingIds);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Legacy skip comment callback (for backward compatibility)
     this.bot.callbackQuery('skip_comment', async (ctx) => {
       await this.bookingHandler.handleSkipComment(ctx);
       await ctx.answerCallbackQuery();
@@ -518,6 +526,13 @@ export class BotService implements OnModuleInit {
         return;
       }
 
+      // Check if entering comment (can be from booking flow or comment request)
+      const commentHandled = await this.bookingHandler.handleCommentText(
+        ctx,
+        ctx.message.text,
+      );
+      if (commentHandled) return;
+
       // Check if user is in booking flow
       if (this.bookingHandler.isInBookingFlow(userId)) {
         // Check if entering time
@@ -526,13 +541,6 @@ export class BotService implements OnModuleInit {
           ctx.message.text,
         );
         if (timeHandled) return;
-
-        // Check if entering comment
-        const commentHandled = await this.bookingHandler.handleCommentText(
-          ctx,
-          ctx.message.text,
-        );
-        if (commentHandled) return;
       }
 
       // Default response - faqat inline keyboard tugmalari ishlatiladi
@@ -594,5 +602,12 @@ export class BotService implements OnModuleInit {
       console.error(`Failed to send message to ${chatId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Set comment request state for a user
+   */
+  setCommentRequestState(userId: number, bookingIds: number[]): void {
+    this.bookingHandler.setCommentRequestState(userId, bookingIds);
   }
 }
