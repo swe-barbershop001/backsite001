@@ -531,11 +531,24 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
   }
 
   /**
+   * Format date for display in notifications
+   */
+  private formatDateForDisplay(date: string): string {
+    const dateObj = new Date(date + 'T00:00:00');
+    return dateObj.toLocaleDateString('uz-UZ', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
+  /**
    * Notify barber about booking status change
    */
   private async notifyBarberOnStatusChange(booking: Booking, status: BookingStatus): Promise<void> {
     try {
-      if (!booking || !booking.barber) {
+      if (!booking || !booking.barber || !booking.barber.tg_id) {
         return;
       }
 
@@ -547,14 +560,8 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
         return;
       }
 
-      // Format date for display
-      const dateObj = new Date(booking.date + 'T00:00:00');
-      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
+      const statusDisplay = this.getStatusDisplayForBarber(status);
+      const formattedDate = this.formatDateForDisplay(booking.date);
 
       const barberMessage = `
 <b>${statusDisplay.title}</b>
@@ -597,38 +604,23 @@ ${statusDisplay.footer || ''}
    */
   private async notifyClientOnStatusChange(booking: Booking, status: BookingStatus): Promise<void> {
     try {
-      if (!booking || !booking.barber) {
-        return;
-      }
-
-      const barber = booking.barber;
-
-      // Barber'ning tg_id va tg_username bo'lishini tekshirish
-      if (!barber.tg_id || !barber.tg_username) {
+      if (!booking || !booking.client || !booking.client.tg_id) {
         return;
       }
 
       const client = booking.client;
       const barber = booking.barber;
       const service = booking.service;
-      const statusDisplay = this.getStatusDisplayForClient(status);
-      const formattedDate = this.formatDateForDisplay(booking.date);
 
-      if (!client || !service) {
+      if (!barber || !service) {
         return;
       }
 
-      // Format date for display
-      const dateObj = new Date(booking.date + 'T00:00:00');
-      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
+      const statusDisplay = this.getStatusDisplayForClient(status);
+      const formattedDate = this.formatDateForDisplay(booking.date);
 
-      const barberMessage = `
-<b>❌ Booking bekor qilindi!</b>
+      const clientMessage = `
+<b>${statusDisplay.title}</b>
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -882,20 +874,15 @@ ${statusDisplay.footer || ''}
     // Yangilangan birinchi booking'ni qaytarish
     const updatedBooking = await this.findOne(id);
 
-    // Agar status APPROVED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
-    if (status.status === BookingStatus.APPROVED && updatedBooking) {
-      await this.notifyBarberOnApproval(updatedBooking);
+    if (!updatedBooking) {
+      return null;
     }
 
-    // Agar status COMPLETED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
-    if (status.status === BookingStatus.COMPLETED && updatedBooking) {
-      await this.notifyBarberOnCompletion(updatedBooking);
-    }
-
-    // Agar status REJECTED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
-    if (status.status === BookingStatus.REJECTED && updatedBooking) {
-      await this.notifyBarberOnRejection(updatedBooking);
-    }
+    // Barber va client'larga status o'zgarishini bildirish (agar tg_id bo'lsa)
+    await Promise.all([
+      this.notifyBarberOnStatusChange(updatedBooking, status.status),
+      this.notifyClientOnStatusChange(updatedBooking, status.status),
+    ]);
 
     return updatedBooking;
   }

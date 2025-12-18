@@ -319,57 +319,7 @@ export class BotService implements OnModuleInit {
               reply_markup: keyboard,
             });
 
-            // Client'ga xabar yuborish - barcha bog'langan booking'larni ko'rsatish
-            if (bookingWithRelations.client?.tg_id) {
-              // Barcha bog'langan booking'larni topish
-              const relatedBookings =
-                await this.bookingService.findRelatedBookings(
-                  bookingWithRelations,
-                );
-
-              // Barcha xizmatlarni formatlash
-              const servicesList = relatedBookings
-                .map((b) => b.service)
-                .filter((s) => s !== null)
-                .map(
-                  (s) =>
-                    `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`,
-                )
-                .join('\n');
-
-              const totalPrice = relatedBookings
-                .map((b) => b.service)
-                .filter((s) => s !== null)
-                .reduce((sum, s) => sum + Number(s.price), 0);
-
-              const totalDuration = relatedBookings
-                .map((b) => b.service)
-                .filter((s) => s !== null)
-                .reduce((sum, s) => sum + s.duration, 0);
-
-              const clientMessage = `
-<b>✅ Booking tasdiqlandi!</b>
-
-━━━━━━━━━━━━━━━━━━
-
-💈 <b>Xizmatlar:</b>
-${servicesList}
-
-💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
-📅 <b>Sana:</b> ${bookingWithRelations.date}
-🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
-👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
-
-━━━━━━━━━━━━━━━━━━
-
-Xizmat vaqtida kelishingizni so'raymiz! 🎉
-`;
-              await this.sendMessage(
-                bookingWithRelations.client.tg_id,
-                clientMessage,
-                { parse_mode: 'HTML' },
-              );
-            }
+            // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
           } else {
             await ctx.editMessageText(
               ctx.callbackQuery.message?.text?.replace(
@@ -434,48 +384,7 @@ Xizmat vaqtida kelishingizni so'raymiz! 🎉
             { parse_mode: 'HTML' },
           );
 
-          // Client'ga xabar yuborish - barcha bog'langan booking'larni ko'rsatish
-          const bookingWithRelations =
-            await this.bookingService.findOne(bookingId);
-          if (bookingWithRelations?.client?.tg_id) {
-            // Barcha bog'langan booking'larni topish
-            const relatedBookings =
-              await this.bookingService.findRelatedBookings(
-                bookingWithRelations,
-              );
-
-            // Barcha xizmatlarni formatlash
-            const servicesList = relatedBookings
-              .map((b) => b.service)
-              .filter((s) => s !== null)
-              .map(
-                (s) =>
-                  `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`,
-              )
-              .join('\n');
-
-            const clientMessage = `
-<b>❌ Booking bekor qilindi</b>
-
-━━━━━━━━━━━━━━━━━━
-
-💈 <b>Xizmatlar:</b>
-${servicesList}
-
-📅 <b>Sana:</b> ${bookingWithRelations.date}
-🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
-👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
-
-━━━━━━━━━━━━━━━━━━
-
-Afsuski, sizning bookingingiz bekor qilindi. Iltimos, boshqa vaqtni tanlang yoki admin bilan bog'laning.
-`;
-            await this.sendMessage(
-              bookingWithRelations.client.tg_id,
-              clientMessage,
-              { parse_mode: 'HTML' },
-            );
-          }
+          // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
         } else {
           await ctx.answerCallbackQuery({
             text: 'Booking topilmadi.',
@@ -536,59 +445,7 @@ Afsuski, sizning bookingingiz bekor qilindi. Iltimos, boshqa vaqtni tanlang yoki
               parse_mode: 'HTML',
             });
 
-            // Client'ga xabar yuborish - barcha bog'langan booking'larni ko'rsatish
-            if (bookingWithRelations.client?.tg_id) {
-              // Barcha bog'langan booking'larni topish
-              const relatedBookings =
-                await this.bookingService.findRelatedBookings(
-                  bookingWithRelations,
-                );
-
-              // Barcha xizmatlarni formatlash
-              const servicesList = relatedBookings
-                .map((b) => b.service)
-                .filter((s) => s !== null)
-                .map(
-                  (s) =>
-                    `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`,
-                )
-                .join('\n');
-
-              const totalPrice = relatedBookings
-                .map((b) => b.service)
-                .filter((s) => s !== null)
-                .reduce((sum, s) => sum + Number(s.price), 0);
-
-              const totalDuration = relatedBookings
-                .map((b) => b.service)
-                .filter((s) => s !== null)
-                .reduce((sum, s) => sum + s.duration, 0);
-
-              const clientMessage = `
-<b>✅ Xizmat yakunlandi!</b>
-
-━━━━━━━━━━━━━━━━━━
-
-💈 <b>Xizmatlar:</b>
-${servicesList}
-
-💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
-📅 <b>Sana:</b> ${bookingWithRelations.date}
-🕒 <b>Vaqt:</b> ${bookingWithRelations.time}
-👨‍🔧 <b>Barber:</b> ${bookingWithRelations.barber.name}
-
-━━━━━━━━━━━━━━━━━━
-
-Xizmat muvaffaqiyatli yakunlandi! Xizmatimizdan foydalanganingiz uchun rahmat! 🎉
-
-Iltimos, xizmat haqida fikringizni bildiring.
-`;
-              await this.sendMessage(
-                bookingWithRelations.client.tg_id,
-                clientMessage,
-                { parse_mode: 'HTML' },
-              );
-            }
+            // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
           } else {
             await ctx.editMessageText(
               ctx.callbackQuery.message?.text?.replace(

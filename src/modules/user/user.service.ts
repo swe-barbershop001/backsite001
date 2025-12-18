@@ -158,6 +158,11 @@ export class UserService {
       }
     }
 
+    // Normalize tg_username (remove leading '@' if present)
+    if (updateUserDto.tg_username) {
+      updateUserDto.tg_username = this.normalizeTgUsername(updateUserDto.tg_username);
+    }
+
     if (updateUserDto.tg_username) {
       const existingUserByTgUsername = await this.userRepository.findOne({
         where: { tg_username: updateUserDto.tg_username },
