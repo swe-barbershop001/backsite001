@@ -17,6 +17,7 @@ import { BarberServiceService } from '../barber-service/barber-service.service';
 import { InlineKeyboard } from 'grammy';
 import { BookingGateway } from './gateways/booking.gateway';
 import { User } from '../user/entities/user.entity';
+import { UpdateStatusDto } from './dto/update-status.dto';
 
 @Injectable()
 export class BookingService {
@@ -54,20 +55,44 @@ export class BookingService {
       );
     }
 
+    // Barcha servislarni tekshirish
+    for (const serviceId of service_ids) {
+      const service = await this.barberServiceService.findOne(serviceId);
+      if (!service) {
+        throw new BadRequestException(`ID ${serviceId} bilan xizmat topilmadi`);
+      }
+    }
+
     // Phone number bo'yicha user topish
     let client = await this.userService.findByPhoneNumber(phone_number);
 
-    console.log({ client });
     if (client?.phone_number == phone_number && client.name == client_name) {
-      throw new BadRequestException(
-        `Bu telefon raqam (${phone_number}) va (${client_name}) bilan foydalanuvchi allaqachon mavjud`,
-      );
+      // Foydalanuvchi allaqachon mavjud, yangi yaratmaymiz
     } else {
-      client = await this.userService.create({
-        phone_number,
-        role: UserRole.CLIENT,
-        name: client_name,
-      });
+      // Yangi foydalanuvchi yaratish
+      try {
+        client = await this.userService.create({
+          phone_number,
+          role: UserRole.CLIENT,
+          name: client_name,
+        });
+      } catch (error: any) {
+        // Agar unique constraint xatosi bo'lsa, qayta topishga harakat qilamiz
+        if (error?.message?.includes('allaqachon mavjud')) {
+          client = await this.userService.findByPhoneNumber(phone_number);
+          if (!client) {
+            throw new BadRequestException(
+              'Foydalanuvchi yaratishda xatolik yuz berdi',
+            );
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (!client || !client.id) {
+      throw new BadRequestException("Mijoz ma'lumotlari topilmadi");
     }
 
     const client_id = client.id;
@@ -125,6 +150,10 @@ export class BookingService {
       const client = bookingWithRelations.client;
       const barber = bookingWithRelations.barber;
       const service = bookingWithRelations.service;
+
+      if (!client || !barber || !service) {
+        return;
+      }
 
       // Agar bir nechta booking bo'lsa, barcha servislarni olish
       let services: (typeof service)[] = [service];
@@ -277,6 +306,10 @@ ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'
       const client = bookingWithRelations.client;
       const barber = bookingWithRelations.barber;
 
+      if (!client || !barber) {
+        return;
+      }
+
       // Barber'ning tg_id va tg_username bo'lishini tekshirish
       if (!barber.tg_id || !barber.tg_username) {
         return;
@@ -354,18 +387,50 @@ ${services
     }
   }
 
-  /**
-   * Format date for display in notifications
-   */
-  private formatDateForDisplay(date: string): string {
-    const dateObj = new Date(date + 'T00:00:00');
-    return dateObj.toLocaleDateString('uz-UZ', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  }
+  private async notifyBarberOnApproval(booking: Booking): Promise<void> {
+    try {
+      if (!booking || !booking.barber) {
+        return;
+      }
+
+      const barber = booking.barber;
+
+      // Barber'ning tg_id va tg_username bo'lishini tekshirish
+      if (!barber.tg_id || !barber.tg_username) {
+        return;
+      }
+
+      const client = booking.client;
+      const service = booking.service;
+
+      if (!client || !service) {
+        return;
+      }
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const barberMessage = `
+<b>✅ Booking tasdiqlandi!</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client.name || client.phone_number}
+${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+💈 <b>Xizmat:</b> ${service.name} – ${Number(service.price).toLocaleString()} so'm (${service.duration} daqiqa)
+
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${booking.time}
+📋 <b>Status:</b> 🟢 APPROVED
+
+━━━━━━━━━━━━━━━━━━
 
   /**
    * Get status display text and emoji for barber notifications
@@ -470,15 +535,26 @@ ${services
    */
   private async notifyBarberOnStatusChange(booking: Booking, status: BookingStatus): Promise<void> {
     try {
-      if (!booking.barber || !booking.barber.tg_id) {
+      if (!booking || !booking.barber) {
         return;
       }
 
       const barber = booking.barber;
       const client = booking.client;
       const service = booking.service;
-      const statusDisplay = this.getStatusDisplayForBarber(status);
-      const formattedDate = this.formatDateForDisplay(booking.date);
+
+      if (!client || !service) {
+        return;
+      }
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
 
       const barberMessage = `
 <b>${statusDisplay.title}</b>
@@ -521,7 +597,14 @@ ${statusDisplay.footer || ''}
    */
   private async notifyClientOnStatusChange(booking: Booking, status: BookingStatus): Promise<void> {
     try {
-      if (!booking.client || !booking.client.tg_id) {
+      if (!booking || !booking.barber) {
+        return;
+      }
+
+      const barber = booking.barber;
+
+      // Barber'ning tg_id va tg_username bo'lishini tekshirish
+      if (!barber.tg_id || !barber.tg_username) {
         return;
       }
 
@@ -531,8 +614,21 @@ ${statusDisplay.footer || ''}
       const statusDisplay = this.getStatusDisplayForClient(status);
       const formattedDate = this.formatDateForDisplay(booking.date);
 
-      const clientMessage = `
-<b>${statusDisplay.title}</b>
+      if (!client || !service) {
+        return;
+      }
+
+      // Format date for display
+      const dateObj = new Date(booking.date + 'T00:00:00');
+      const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const barberMessage = `
+<b>❌ Booking bekor qilindi!</b>
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -572,6 +668,10 @@ ${statusDisplay.footer || ''}
   }
 
   async findOne(id: number): Promise<Booking | null> {
+    if (!id || isNaN(id)) {
+      throw new BadRequestException("Noto'g'ri ID format");
+    }
+
     return await this.bookingRepository.findOne({
       where: { id },
       relations: ['client', 'barber', 'service'],
@@ -579,6 +679,10 @@ ${statusDisplay.footer || ''}
   }
 
   async findByClientId(clientId: number): Promise<Booking[]> {
+    if (!clientId || isNaN(clientId)) {
+      throw new BadRequestException("Noto'g'ri mijoz ID format");
+    }
+
     return await this.bookingRepository.find({
       where: { client_id: clientId },
       relations: ['barber', 'service'],
@@ -587,6 +691,10 @@ ${statusDisplay.footer || ''}
   }
 
   async findByBarberId(barberId: number): Promise<Booking[]> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
     return await this.bookingRepository.find({
       where: { barber_id: barberId },
       relations: ['client', 'service'],
@@ -602,6 +710,19 @@ ${statusDisplay.footer || ''}
     });
   }
 
+  /**
+   * Yakunlanmagan booking'larni topadi (PENDING va APPROVED statusdagi)
+   */
+  async findUncompletedBookings(): Promise<Booking[]> {
+    return await this.bookingRepository.find({
+      where: {
+        status: In([BookingStatus.PENDING, BookingStatus.APPROVED]),
+      },
+      relations: ['client', 'barber', 'service'],
+      order: { date: 'ASC', time: 'ASC' },
+    });
+  }
+
   async findBookingsWithComments(): Promise<Booking[]> {
     return await this.bookingRepository.find({
       where: { comment: Not(IsNull()) },
@@ -610,16 +731,44 @@ ${statusDisplay.footer || ''}
     });
   }
 
+  /**
+   * Bir booking bilan bog'langan barcha booking'larni topadi
+   * (bir xil client_id, barber_id, date, time - statusdan qat'iy nazar)
+   */
+  async findRelatedBookings(booking: Booking): Promise<Booking[]> {
+    if (
+      !booking.client_id ||
+      !booking.barber_id ||
+      !booking.date ||
+      !booking.time
+    ) {
+      return [booking];
+    }
+
+    const relatedBookings = await this.bookingRepository.find({
+      where: {
+        client_id: booking.client_id,
+        barber_id: booking.barber_id,
+        date: booking.date,
+        time: booking.time,
+        // Statusni tekshirmaymiz, chunki tasdiqlash/yakunlash paytida status o'zgaradi
+      },
+      relations: ['client', 'barber', 'service'],
+    });
+
+    return relatedBookings.length > 0 ? relatedBookings : [booking];
+  }
+
   async approve(id: number): Promise<Booking | null> {
-    return await this.updateStatus(id, BookingStatus.APPROVED);
+    return await this.updateStatus(id, { status: BookingStatus.APPROVED });
   }
 
   async reject(id: number): Promise<Booking | null> {
-    return await this.updateStatus(id, BookingStatus.REJECTED);
+    return await this.updateStatus(id, { status: BookingStatus.REJECTED });
   }
 
   async complete(id: number): Promise<Booking | null> {
-    return await this.updateStatus(id, BookingStatus.COMPLETED);
+    return await this.updateStatus(id, { status: BookingStatus.COMPLETED });
   }
 
   async checkTimeSlotAvailability(
@@ -628,8 +777,38 @@ ${statusDisplay.footer || ''}
     time: string,
     duration: number,
   ): Promise<boolean> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
+    if (!date || !time) {
+      throw new BadRequestException('Sana va vaqt berilishi kerak');
+    }
+
+    if (!duration || duration <= 0) {
+      throw new BadRequestException("Davomiylik musbat son bo'lishi kerak");
+    }
+
     // Convert time to minutes for easier calculation
-    const [hours, minutes] = time.split(':').map(Number);
+    const timeParts = time.split(':');
+    if (timeParts.length !== 2) {
+      throw new BadRequestException(
+        "Vaqt formati noto'g'ri (HH:mm bo'lishi kerak)",
+      );
+    }
+
+    const [hours, minutes] = timeParts.map(Number);
+    if (
+      isNaN(hours) ||
+      isNaN(minutes) ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59
+    ) {
+      throw new BadRequestException("Noto'g'ri vaqt formati");
+    }
+
     const startMinutes = hours * 60 + minutes;
     const endMinutes = startMinutes + duration;
 
@@ -645,11 +824,23 @@ ${statusDisplay.footer || ''}
 
     // Check for overlaps
     for (const booking of bookings) {
-      const [bookingHours, bookingMinutes] = booking.time
-        .split(':')
-        .map(Number);
+      if (!booking.service || !booking.time) {
+        continue;
+      }
+
+      const bookingTimeParts = booking.time.split(':');
+      if (bookingTimeParts.length !== 2) {
+        continue;
+      }
+
+      const [bookingHours, bookingMinutes] = bookingTimeParts.map(Number);
+      if (isNaN(bookingHours) || isNaN(bookingMinutes)) {
+        continue;
+      }
+
       const bookingStartMinutes = bookingHours * 60 + bookingMinutes;
-      const bookingEndMinutes = bookingStartMinutes + booking.service.duration;
+      const bookingEndMinutes =
+        bookingStartMinutes + Number(booking.service.duration || 0);
 
       // Check if time slots overlap
       if (
@@ -667,10 +858,10 @@ ${statusDisplay.footer || ''}
 
   async updateStatus(
     id: number,
-    status: BookingStatus,
+    status: UpdateStatusDto,
   ): Promise<Booking | null> {
     const booking = await this.findOne(id);
-    
+
     if (!booking) {
       throw new BadRequestException(`Bunday ID bilan bron topilmadi: ${id}`);
     }
@@ -678,32 +869,60 @@ ${statusDisplay.footer || ''}
     // User o'chirilganda booking'lar o'chib ketmasligi uchun
     // booking'lar saqlanib qoladi, faqat client_id va barber_id null bo'ladi
 
-    // Status'ni yangilash
-    await this.bookingRepository.update(id, { status });
+    // Bog'langan barcha booking'larni topish (bir xil client_id, barber_id, date, time)
+    const relatedBookings = await this.findRelatedBookings(booking);
+
+    // Barcha bog'langan booking'larni yangilash
+    const bookingIds = relatedBookings.map((b) => b.id);
+    await this.bookingRepository.update(
+      { id: In(bookingIds) },
+      { status: status.status },
+    );
+
+    // Yangilangan birinchi booking'ni qaytarish
     const updatedBooking = await this.findOne(id);
 
-    if (!updatedBooking) {
-      return null;
+    // Agar status APPROVED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
+    if (status.status === BookingStatus.APPROVED && updatedBooking) {
+      await this.notifyBarberOnApproval(updatedBooking);
     }
 
-    // Barber va client'larga status o'zgarishini bildirish (agar tg_id bo'lsa)
-    await Promise.all([
-      this.notifyBarberOnStatusChange(updatedBooking, status),
-      this.notifyClientOnStatusChange(updatedBooking, status),
-    ]);
+    // Agar status COMPLETED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
+    if (status.status === BookingStatus.COMPLETED && updatedBooking) {
+      await this.notifyBarberOnCompletion(updatedBooking);
+    }
+
+    // Agar status REJECTED bo'lsa, barber'ga xabar yuborish (faqat bir marta)
+    if (status.status === BookingStatus.REJECTED && updatedBooking) {
+      await this.notifyBarberOnRejection(updatedBooking);
+    }
 
     return updatedBooking;
   }
 
   async updateComment(id: number, comment: string): Promise<Booking | null> {
+    const booking = await this.findOne(id);
+    if (!booking) {
+      throw new BadRequestException(`ID ${id} bilan bron topilmadi`);
+    }
+
     await this.bookingRepository.update(id, { comment });
     return await this.findOne(id);
   }
 
   async remove(id: number): Promise<void> {
+    if (!id || isNaN(id)) {
+      throw new BadRequestException("Noto'g'ri ID format");
+    }
+
+    const booking = await this.findOne(id);
+    if (!booking) {
+      throw new BadRequestException(`ID ${id} bilan bron topilmadi`);
+    }
+
     const result = await this.bookingRepository.delete(id);
     if (result.affected === 0) {
-      throw new BadRequestException(`ID ${id} bilan bron topilmadi`);
+      throw new BadRequestException(`ID ${id} bilan bron o'chirilmadi`);
     }
   }
 
@@ -711,9 +930,13 @@ ${statusDisplay.footer || ''}
     const { startDate, endDate } = dto;
 
     // Sana validatsiyasi
+    if (!startDate || !endDate) {
+      throw new BadRequestException('startDate va endDate berilishi kerak');
+    }
+
     if (startDate > endDate) {
       throw new BadRequestException(
-        'startDate endDate dan katta bo\'lishi mumkin emas',
+        "startDate endDate dan katta bo'lishi mumkin emas",
       );
     }
 
@@ -760,7 +983,7 @@ ${statusDisplay.footer || ''}
     >();
 
     filteredBookings.forEach((booking) => {
-      if (!booking.barber) return;
+      if (!booking.barber || !booking.barber_id) return;
 
       const barberId = booking.barber_id;
       const existing = barberStatsMap.get(barberId);
@@ -768,9 +991,9 @@ ${statusDisplay.footer || ''}
       if (existing) {
         existing.bookings.push(booking);
         existing.totalBookings++;
-        if (booking.status === BookingStatus.COMPLETED) {
+        if (booking.status === BookingStatus.COMPLETED && booking.service) {
           existing.completedBookings.push(booking);
-          existing.totalRevenue += Number(booking.service?.price || 0);
+          existing.totalRevenue += Number(booking.service.price || 0);
         }
       } else {
         barberStatsMap.set(barberId, {
@@ -778,10 +1001,12 @@ ${statusDisplay.footer || ''}
           bookings: [booking],
           totalBookings: 1,
           completedBookings:
-            booking.status === BookingStatus.COMPLETED ? [booking] : [],
+            booking.status === BookingStatus.COMPLETED && booking.service
+              ? [booking]
+              : [],
           totalRevenue:
-            booking.status === BookingStatus.COMPLETED
-              ? Number(booking.service?.price || 0)
+            booking.status === BookingStatus.COMPLETED && booking.service
+              ? Number(booking.service.price || 0)
               : 0,
         });
       }
@@ -823,7 +1048,7 @@ ${statusDisplay.footer || ''}
 
     // Jami daromad (barcha completed booking'lar)
     const totalRevenue = filteredBookings
-      .filter((b) => b.status === BookingStatus.COMPLETED)
+      .filter((b) => b.status === BookingStatus.COMPLETED && b.service)
       .reduce((sum, b) => sum + Number(b.service?.price || 0), 0);
 
     return {

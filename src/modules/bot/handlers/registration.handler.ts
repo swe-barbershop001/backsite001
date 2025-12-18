@@ -21,9 +21,11 @@ export class RegistrationHandler {
 
     // Avval tg_username orqali qidirish
     const tgUsername = ctx.from?.username;
+    console.log(tgUsername);
     if (tgUsername) {
       let user = await this.userService.findByTgUsername(tgUsername);
 
+      console.log(user);
       // Agar foydalanuvchi topilsa, tg_id ni yangilash
       if (user) {
         const updateData: any = { tg_id: tgId };

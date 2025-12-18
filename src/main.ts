@@ -1,10 +1,34 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 
 async function bootstrap() {
   console.log('[Main] Starting NestJS application...');
   const app = await NestFactory.create(AppModule);
+
+  // Global Validation Pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      exceptionFactory: (errors) => {
+        const messages = errors.map((error) => {
+          const constraints = error.constraints || {};
+          return Object.values(constraints).join(', ');
+        });
+        return new BadRequestException(messages);
+      },
+    }),
+  );
+
+  // Global Exception Filter
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   // CORS Configuration
   app.enableCors({

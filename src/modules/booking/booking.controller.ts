@@ -27,6 +27,7 @@ import { BookingStatus } from '../../common/enums/booking-status.enum';
 import { AuthGuard, RoleGuard } from 'src/common/guards';
 import { Role } from 'src/common/decorators';
 import { UserRole } from 'src/common/enums/user.enum';
+import { UpdateStatusDto } from './dto/update-status.dto';
 
 @Controller('bookings')
 @ApiTags('bookings')
@@ -63,25 +64,25 @@ export class BookingController {
     return this.bookingService.findAll();
   }
 
-  @Get('client/:clientId')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Muayyan mijoz uchun barcha bronlarni olish' })
-  @ApiParam({ name: 'clientId', type: 'number', description: 'Mijoz ID' })
-  @ApiResponse({ status: 200, description: 'Mijoz uchun bronlar ro\'yxati' })
-  findByClient(@Param('clientId') clientId: string) {
-    return this.bookingService.findByClientId(+clientId);
-  }
+  // @Get('client/:clientId')
+  // @UseGuards(AuthGuard)
+  // @ApiBearerAuth()
+  // @ApiOperation({ summary: 'Muayyan mijoz uchun barcha bronlarni olish' })
+  // @ApiParam({ name: 'clientId', type: 'number', description: 'Mijoz ID' })
+  // @ApiResponse({ status: 200, description: 'Mijoz uchun bronlar ro\'yxati' })
+  // findByClient(@Param('clientId') clientId: string) {
+  //   return this.bookingService.findByClientId(+clientId);
+  // }
 
-  @Get('my')
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Joriy foydalanuvchi bronlarini olish' })
-  @ApiResponse({ status: 200, description: 'Joriy foydalanuvchi bronlari ro\'yxati' })
-  getMyBookings(@Request() req: any) {
-    const userId = req.user.id;
-    return this.bookingService.findByClientId(userId);
-  }
+  // @Get('my')
+  // @UseGuards(AuthGuard)
+  // @ApiBearerAuth()
+  // @ApiOperation({ summary: 'Joriy foydalanuvchi bronlarini olish' })
+  // @ApiResponse({ status: 200, description: 'Joriy foydalanuvchi bronlari ro\'yxati' })
+  // getMyBookings(@Request() req: any) {
+  //   const userId = req.user.id;
+  //   return this.bookingService.findByClientId(userId);
+  // }
 
   @Get('barber/:barberId')
   @UseGuards(AuthGuard)
@@ -161,7 +162,7 @@ export class BookingController {
   })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
-    @Body('status') status: BookingStatus,
+    @Body() status: UpdateStatusDto,
   ) {
     return this.bookingService.updateStatus(+id, status);
   }

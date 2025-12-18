@@ -111,10 +111,28 @@ export class UserService {
     return await this.userRepository.save(user);
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-    // Normalize tg_username (remove leading '@' if present)
-    if (updateUserDto.tg_username) {
-      updateUserDto.tg_username = this.normalizeTgUsername(updateUserDto.tg_username);
+  async update(
+    id: number,
+    updateUserDto: UpdateUserDto,
+    currentUser?: { id: number; role: UserRole },
+  ): Promise<User> {
+    if (!id || isNaN(id)) {
+      throw new BadRequestException('Noto\'g\'ri ID format');
+    }
+    
+    // Foydalanuvchi mavjudligini tekshirish
+    const existingUser = await this.findOne(id);
+    if (!existingUser) {
+      throw new NotFoundException(`ID ${id} bilan foydalanuvchi topilmadi`);
+    }
+    
+    // Agar role BARBER bo'lsa, faqat o'zining ma'lumotlarini yangilashi mumkin
+    if (currentUser && currentUser.role === UserRole.BARBER) {
+      if (currentUser.id !== id) {
+        throw new ForbiddenException(
+          'Barber faqat o\'zining ma\'lumotlarini yangilashi mumkin',
+        );
+      }
     }
 
     // Unique tekshiruvlar (faqat yangilangan maydonlar uchun)
@@ -170,7 +188,16 @@ export class UserService {
     return user;
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: number, currentUser?: { id: number; role: UserRole }): Promise<void> {
+    // Agar role BARBER bo'lsa, faqat o'zining ma'lumotlarini o'chirishi mumkin
+    if (currentUser && currentUser.role === UserRole.BARBER) {
+      if (currentUser.id !== id) {
+        throw new ForbiddenException(
+          'Barber faqat o\'zining ma\'lumotlarini o\'chirishi mumkin',
+        );
+      }
+    }
+
     await this.userRepository.delete(id);
   }
 

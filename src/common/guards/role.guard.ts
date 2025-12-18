@@ -37,8 +37,6 @@ export class RoleGuard implements CanActivate {
       );
     }
 
-    console.log("ishladi")
-
     return true;
   }
 }

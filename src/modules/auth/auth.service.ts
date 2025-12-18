@@ -91,8 +91,12 @@ export class AuthService {
     return this.jwtService.signAsync(payload);
   }
 
-  verifyToken(token: string): Promise<TokenPayload> {
-    return this.jwtService.verifyAsync(token);
+  async verifyToken(token: string): Promise<TokenPayload | null> {
+    try {
+      return await this.jwtService.verifyAsync<TokenPayload>(token);
+    } catch (error) {
+      return null;
+    }
   }
 
   hashPassword(password: string): Promise<string> {

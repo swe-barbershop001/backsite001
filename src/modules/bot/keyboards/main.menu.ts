@@ -32,6 +32,8 @@ export const getBarberMainMenu = () => {
  */
 export const getAdminMainMenu = () => {
   return new InlineKeyboard()
+    .text('📋 Yakunlanmagan bookinglar', 'admin_bookings')
+    .row()
     .text('👤 Profil', 'admin_profile');
 };
 
