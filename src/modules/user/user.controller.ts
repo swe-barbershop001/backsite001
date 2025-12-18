@@ -8,14 +8,25 @@ import {
   Delete,
   UseGuards,
   Request,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
   ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import * as fs from 'fs';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -37,7 +48,29 @@ export class UserController {
 
   @Post()
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Yangi foydalanuvchi yaratish' })
+  @ApiOperation({ summary: 'Yangi foydalanuvchi yaratish (profile rasm bilan)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Foydalanuvchi ismi' },
+        phone_number: { type: 'string', description: 'Telefon raqami' },
+        tg_id: { type: 'string', description: 'Telegram ID' },
+        tg_username: { type: 'string', description: 'Telegram foydalanuvchi nomi' },
+        password: { type: 'string', description: 'Parol' },
+        role: { type: 'string', enum: Object.values(UserRole), description: 'Foydalanuvchi roli' },
+        working: { type: 'boolean', description: 'Sartarosh ishlayaptimi?' },
+        work_start_time: { type: 'string', description: 'Ish boshlash vaqti (HH:mm)' },
+        work_end_time: { type: 'string', description: 'Ish tugash vaqti (HH:mm)' },
+        profile_image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile rasm fayli (image/jpeg, image/png, image/jpg)',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Foydalanuvchi muvaffaqiyatli yaratildi',
@@ -50,7 +83,45 @@ export class UserController {
   })
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  create(@Body() createUserDto: CreateUserDto, @Request() req: any) {
+  @UseInterceptors(
+    FileInterceptor('profile_image', {
+      storage: diskStorage({
+        destination: './uploads/profiles',
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, `user-${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+          return cb(new Error('Faqat rasm fayllari (jpg, jpeg, png, gif) qabul qilinadi'), false);
+        }
+        cb(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
+  async create(
+    @Body() createUserDto: CreateUserDto,
+    @Request() req: any,
+    @UploadedFile(
+      new ParseFilePipe({
+        fileIsRequired: false,
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
+          new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
+        ],
+      }),
+    )
+    file?: Express.Multer.File,
+  ) {
+    // Agar file yuborilgan bo'lsa, file path'ni DTO'ga qo'shish
+    if (file) {
+      createUserDto.profile_image = `/uploads/profiles/${file.filename}`;
+    }
     return this.userService.create(createUserDto, req.user);
   }
 
@@ -78,7 +149,29 @@ export class UserController {
 
   @Patch(':id')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Foydalanuvchini yangilash' })
+  @ApiOperation({ summary: 'Foydalanuvchini yangilash (profile rasm bilan)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Foydalanuvchi ismi' },
+        phone_number: { type: 'string', description: 'Telefon raqami' },
+        tg_id: { type: 'string', description: 'Telegram ID' },
+        tg_username: { type: 'string', description: 'Telegram foydalanuvchi nomi' },
+        password: { type: 'string', description: 'Parol' },
+        role: { type: 'string', enum: Object.values(UserRole), description: 'Foydalanuvchi roli' },
+        working: { type: 'boolean', description: 'Sartarosh ishlayaptimi?' },
+        work_start_time: { type: 'string', description: 'Ish boshlash vaqti (HH:mm)' },
+        work_end_time: { type: 'string', description: 'Ish tugash vaqti (HH:mm)' },
+        profile_image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile rasm fayli (image/jpeg, image/png, image/jpg)',
+        },
+      },
+    },
+  })
   @ApiParam({ name: 'id', type: 'number', description: 'Foydalanuvchi ID' })
   @ApiResponse({
     status: 200,
@@ -92,11 +185,54 @@ export class UserController {
   })
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.BARBER)
-  update(
+  @UseInterceptors(
+    FileInterceptor('profile_image', {
+      storage: diskStorage({
+        destination: './uploads/profiles',
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, `user-${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+          return cb(new Error('Faqat rasm fayllari (jpg, jpeg, png, gif) qabul qilinadi'), false);
+        }
+        cb(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
+  async update(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
     @Request() req: any,
+    @UploadedFile(
+      new ParseFilePipe({
+        fileIsRequired: false,
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
+          new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
+        ],
+      }),
+    )
+    file?: Express.Multer.File,
   ) {
+    // Agar file yuborilgan bo'lsa, eski faylni o'chirish va yangi file path'ni qo'shish
+    if (file) {
+      const existingUser = await this.userService.findOne(+id);
+      if (existingUser?.profile_image) {
+        // Eski faylni o'chirish
+        const filePath = join(process.cwd(), existingUser.profile_image);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+      updateUserDto.profile_image = `/uploads/profiles/${file.filename}`;
+    }
     return this.userService.update(+id, updateUserDto, req.user);
   }
 

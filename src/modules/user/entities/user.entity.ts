@@ -44,6 +44,9 @@ export class User {
   @Column({ nullable: true })
   work_end_time?: string; // Barber uchun ish tugash vaqti (HH:mm formatida, masalan: "18:00")
 
+  @Column({ nullable: true })
+  profile_image?: string; // Profile rasm fayl yo'li (masalan: "/uploads/profiles/user-123.jpg")
+
   @OneToMany(() => Booking, (booking) => booking.client)
   clientBookings: Booking[];
 

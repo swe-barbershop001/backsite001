@@ -66,10 +66,49 @@ export class BookingService {
     // Phone number bo'yicha user topish
     let client = await this.userService.findByPhoneNumber(phone_number);
 
-    if (client?.phone_number == phone_number && client.name == client_name) {
-      // Foydalanuvchi allaqachon mavjud, yangi yaratmaymiz
+    if (client) {
+      // Client topildi
+      // Agar client'da tg_id bo'lsa, bu bot orqali ro'yxatdan o'tgan client
+      // Bu holatda yangi client yaratmasligimiz kerak, mavjud client'ni ishlatamiz
+      if (client.tg_id) {
+        // Bot orqali ro'yxatdan o'tgan client, mavjud client'ni ishlatamiz
+        // Ismni yangilash (agar o'zgargan bo'lsa)
+        if (client_name && client.name !== client_name) {
+          await this.userService.update(client.id, { name: client_name });
+          client.name = client_name;
+        }
+      } else if (client.phone_number === phone_number && client.name === client_name) {
+        // Telefon raqam va ism mos keladi, mavjud client'ni ishlatamiz
+      } else {
+        // Telefon raqam mos keladi, lekin ism mos kelmaydi
+        // Yangi client yaratishga harakat qilamiz
+        try {
+          client = await this.userService.create({
+            phone_number,
+            role: UserRole.CLIENT,
+            name: client_name,
+          });
+        } catch (error: any) {
+          // Agar unique constraint xatosi bo'lsa, qayta topishga harakat qilamiz
+          if (error?.message?.includes('allaqachon mavjud')) {
+            client = await this.userService.findByPhoneNumber(phone_number);
+            if (!client) {
+              throw new BadRequestException(
+                'Foydalanuvchi yaratishda xatolik yuz berdi',
+              );
+            }
+            // Topilgan client'ning ismini yangilash
+            if (client_name && client.name !== client_name) {
+              await this.userService.update(client.id, { name: client_name });
+              client.name = client_name;
+            }
+          } else {
+            throw error;
+          }
+        }
+      }
     } else {
-      // Yangi foydalanuvchi yaratish
+      // Client topilmadi, yangi yaratish
       try {
         client = await this.userService.create({
           phone_number,

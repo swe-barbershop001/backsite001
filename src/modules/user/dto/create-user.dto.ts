@@ -68,4 +68,9 @@ export class CreateUserDto {
     message: 'work_end_time HH:mm formatida bo\'lishi kerak (masalan, 18:00)',
   })
   work_end_time?: string;
+
+  @ApiPropertyOptional({ description: 'Profile rasm fayl yo\'li', example: '/uploads/profiles/user-123.jpg' })
+  @IsString()
+  @IsOptional()
+  profile_image?: string;
 }
