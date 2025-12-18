@@ -578,50 +578,8 @@ Quyidagi vaqtlardan birini tanlang:
 
       // Admin'larga xabar booking.service.ts ichidagi notifyAdmins metodi orqali yuboriladi
 
-      // Notify barber if tg_id exists
-      if (barber.tg_id) {
-        const totalPrice = selectedServices.reduce(
-          (sum, s) => sum + Number(s.price),
-          0,
-        );
-        
-        // Format date for display
-        const dateObj = new Date(date + 'T00:00:00');
-        const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        });
-
-        const barberMessage = `
-<b>🆕 Yangi bron yaratildi!</b>
-
-━━━━━━━━━━━━━━━━━━
-
-👤 <b>Mijoz:</b> ${client.name}${client.tg_username ? ` (@${client.tg_username})` : ''}
-${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
-💈 <b>Xizmatlar:</b>
-${selectedServices.map(s => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}
-
-💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
-📅 <b>Sana:</b> ${formattedDate}
-🕒 <b>Vaqt:</b> ${time}
-
-━━━━━━━━━━━━━━━━━━
-`;
-
-        try {
-          await ctx.api.sendMessage(barber.tg_id, barberMessage, {
-            parse_mode: 'HTML',
-          });
-        } catch (error: any) {
-          // Ignore errors if barber's tg_id is invalid or chat not found (test ma'lumotlari uchun normal)
-          if (!error?.description?.includes('chat not found') && !error?.description?.includes('Bad Request')) {
-            console.error('Failed to send message to barber:', error);
-          }
-        }
-      }
+      // Barber'ga xabar booking.service.ts ichidagi notifyBarber() metodi orqali yuboriladi
+      // Bu yerda qayta yuborish shart emas
 
       const totalPrice = selectedServices.reduce(
         (sum, s) => sum + Number(s.price),

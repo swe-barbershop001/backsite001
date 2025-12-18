@@ -725,15 +725,32 @@ ${statusDisplay.footer || ''}
    */
   private async notifyClientOnStatusChange(booking: Booking, status: BookingStatus): Promise<void> {
     try {
-      if (!booking || !booking.client || !booking.client.tg_id) {
+      if (!booking) {
         return;
+      }
+
+      // Agar client relation yuklanmagan bo'lsa, qayta yuklash
+      if (!booking.client || !booking.client.tg_id) {
+        const bookingWithClient = await this.bookingRepository.findOne({
+          where: { id: booking.id },
+          relations: ['client', 'barber', 'service'],
+        });
+        
+        if (!bookingWithClient || !bookingWithClient.client || !bookingWithClient.client.tg_id) {
+          return;
+        }
+        
+        // bookingWithClient ma'lumotlarini ishlatish
+        booking.client = bookingWithClient.client;
+        booking.barber = bookingWithClient.barber;
+        booking.service = bookingWithClient.service;
       }
 
       const client = booking.client;
       const barber = booking.barber;
       const service = booking.service;
 
-      if (!barber || !service) {
+      if (!barber || !service || !client.tg_id) {
         return;
       }
 
