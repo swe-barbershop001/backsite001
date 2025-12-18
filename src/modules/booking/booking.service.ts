@@ -712,16 +712,55 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
         return;
       }
 
-      const barber = booking.barber;
-      const client = booking.client;
-      const service = booking.service;
+      // Related booking'larni topish
+      const relatedBookings = await this.findRelatedBookings(booking);
 
-      if (!client || !service) {
+      // Barcha booking'larni to'liq ma'lumotlar bilan olish
+      const bookingsWithRelations = await Promise.all(
+        relatedBookings.map(async (b) => {
+          const fullBooking = await this.bookingRepository.findOne({
+            where: { id: b.id },
+            relations: ['client', 'barber', 'service'],
+          });
+          return fullBooking;
+        }),
+      );
+
+      // Null bo'lmagan booking'larni filtrlash
+      const validBookings = bookingsWithRelations.filter(
+        (b): b is Booking => b !== null && b !== undefined,
+      );
+
+      if (validBookings.length === 0) {
         return;
       }
 
+      const firstBooking = validBookings[0];
+      const barber = firstBooking.barber;
+      const client = firstBooking.client;
+
+      if (!barber || !client) {
+        return;
+      }
+
+      // Barcha xizmatlarni olish
+      const services = validBookings
+        .map((b) => b.service)
+        .filter((s): s is typeof firstBooking.service => s !== null && s !== undefined);
+
+      const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
+      const totalDuration = services.reduce(
+        (sum, s) => sum + Number(s.duration),
+        0,
+      );
+
       const statusDisplay = this.getStatusDisplayForBarber(status);
-      const formattedDate = this.formatDateForDisplay(booking.date);
+      const formattedDate = this.formatDateForDisplay(firstBooking.date);
+
+      // Agar bir nechta xizmat bo'lsa, ularning barchasini ko'rsatish
+      const servicesText = services.length > 1
+        ? `💈 <b>Xizmatlar:</b>\n${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}\n\n💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa`
+        : `💈 <b>Xizmat:</b> ${services[0]?.name || 'Noma\'lum'} – ${services[0] ? Number(services[0].price).toLocaleString() : '0'} so'm (${services[0]?.duration || 0} daqiqa)`;
 
       const barberMessage = `
 <b>${statusDisplay.title}</b>
@@ -731,12 +770,12 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
 👤 <b>Mijoz:</b> ${client?.name || client?.phone_number || 'Noma\'lum'}
 ${client?.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
 ${client?.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
-💈 <b>Xizmat:</b> ${service?.name || 'Noma\'lum'} – ${service ? Number(service.price).toLocaleString() : '0'} so'm (${service?.duration || 0} daqiqa)
+${servicesText}
 
 📅 <b>Sana:</b> ${formattedDate}
-🕒 <b>Vaqt:</b> ${booking.time}
+🕒 <b>Vaqt:</b> ${firstBooking.time}
 📋 <b>Status:</b> ${statusDisplay.emoji} ${statusDisplay.statusText}
-${booking.comment && status === BookingStatus.COMPLETED ? `💬 <b>Mijoz izohi:</b> ${booking.comment}\n` : ''}
+${firstBooking.comment && status === BookingStatus.COMPLETED ? `💬 <b>Mijoz izohi:</b> ${firstBooking.comment}\n` : ''}
 ━━━━━━━━━━━━━━━━━━
 
 ${statusDisplay.footer || ''}
@@ -768,33 +807,64 @@ ${statusDisplay.footer || ''}
         return;
       }
 
-      // Agar client relation yuklanmagan bo'lsa, qayta yuklash
-      if (!booking.client || !booking.client.tg_id) {
-        const bookingWithClient = await this.bookingRepository.findOne({
-          where: { id: booking.id },
-          relations: ['client', 'barber', 'service'],
-        });
-        
-        if (!bookingWithClient || !bookingWithClient.client || !bookingWithClient.client.tg_id) {
-          return;
-        }
-        
-        // bookingWithClient ma'lumotlarini ishlatish
-        booking.client = bookingWithClient.client;
-        booking.barber = bookingWithClient.barber;
-        booking.service = bookingWithClient.service;
-      }
+      // Related booking'larni topish
+      const relatedBookings = await this.findRelatedBookings(booking);
 
-      const client = booking.client;
-      const barber = booking.barber;
-      const service = booking.service;
+      // Barcha booking'larni to'liq ma'lumotlar bilan olish
+      const bookingsWithRelations = await Promise.all(
+        relatedBookings.map(async (b) => {
+          const fullBooking = await this.bookingRepository.findOne({
+            where: { id: b.id },
+            relations: ['client', 'barber', 'service'],
+          });
+          return fullBooking;
+        }),
+      );
 
-      if (!barber || !service || !client.tg_id) {
+      // Null bo'lmagan booking'larni filtrlash
+      const validBookings = bookingsWithRelations.filter(
+        (b): b is Booking => b !== null && b !== undefined,
+      );
+
+      if (validBookings.length === 0) {
         return;
       }
 
+      const firstBooking = validBookings[0];
+      const client = firstBooking.client;
+      const barber = firstBooking.barber;
+
+      // Agar client relation yuklanmagan bo'lsa, qayta yuklash
+      if (!client || !client.tg_id) {
+        return;
+      }
+
+      if (!barber) {
+        return;
+      }
+
+      // Barcha xizmatlarni olish
+      const services = validBookings
+        .map((b) => b.service)
+        .filter((s): s is typeof firstBooking.service => s !== null && s !== undefined);
+
+      if (services.length === 0) {
+        return;
+      }
+
+      const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
+      const totalDuration = services.reduce(
+        (sum, s) => sum + Number(s.duration),
+        0,
+      );
+
       const statusDisplay = this.getStatusDisplayForClient(status);
-      const formattedDate = this.formatDateForDisplay(booking.date);
+      const formattedDate = this.formatDateForDisplay(firstBooking.date);
+
+      // Agar bir nechta xizmat bo'lsa, ularning barchasini ko'rsatish
+      const servicesText = services.length > 1
+        ? `💈 <b>Xizmatlar:</b>\n${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}\n\n💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa`
+        : `💈 <b>Xizmat:</b> ${services[0]?.name || 'Noma\'lum'} – ${services[0] ? Number(services[0].price).toLocaleString() : '0'} so'm`;
 
       const clientMessage = `
 <b>${statusDisplay.title}</b>
@@ -802,10 +872,10 @@ ${statusDisplay.footer || ''}
 ━━━━━━━━━━━━━━━━━━
 
 👨‍🔧 <b>Barber:</b> ${barber?.name || 'Noma\'lum'}
-💈 <b>Xizmat:</b> ${service?.name || 'Noma\'lum'} – ${service ? Number(service.price).toLocaleString() : '0'} so'm
+${servicesText}
 
 📅 <b>Sana:</b> ${formattedDate}
-🕒 <b>Vaqt:</b> ${booking.time}
+🕒 <b>Vaqt:</b> ${firstBooking.time}
 📋 <b>Status:</b> ${statusDisplay.emoji} ${statusDisplay.statusText}
 
 ━━━━━━━━━━━━━━━━━━
@@ -839,35 +909,76 @@ ${statusDisplay.footer || ''}
         return;
       }
 
-      // Agar allaqachon izoh bo'lsa, so'ramaymiz
-      if (booking.comment) {
-        return;
-      }
-
-      const client = booking.client;
-      const barber = booking.barber;
-      const service = booking.service;
-
-      if (!barber || !service) {
-        return;
-      }
-
       // Bog'langan barcha booking'larni topish (bir xil client_id, barber_id, date, time)
       const relatedBookings = await this.findRelatedBookings(booking);
-      const bookingIds = relatedBookings.map((b) => b.id);
+      
+      // Agar allaqachon barcha booking'larda izoh bo'lsa, so'ramaymiz
+      const hasAllComments = relatedBookings.every((b) => b.comment);
+      if (hasAllComments) {
+        return;
+      }
 
-      const formattedDate = this.formatDateForDisplay(booking.date);
+      // Barcha booking'larni to'liq ma'lumotlar bilan olish
+      const bookingsWithRelations = await Promise.all(
+        relatedBookings.map(async (b) => {
+          const fullBooking = await this.bookingRepository.findOne({
+            where: { id: b.id },
+            relations: ['client', 'barber', 'service'],
+          });
+          return fullBooking;
+        }),
+      );
+
+      // Null bo'lmagan booking'larni filtrlash
+      const validBookings = bookingsWithRelations.filter(
+        (b): b is Booking => b !== null && b !== undefined,
+      );
+
+      if (validBookings.length === 0) {
+        return;
+      }
+
+      const firstBooking = validBookings[0];
+      const client = firstBooking.client;
+      const barber = firstBooking.barber;
+
+      if (!barber || !client || !client.tg_id) {
+        return;
+      }
+
+      // Barcha xizmatlarni olish
+      const services = validBookings
+        .map((b) => b.service)
+        .filter((s): s is typeof firstBooking.service => s !== null && s !== undefined);
+
+      if (services.length === 0) {
+        return;
+      }
+
+      const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
+      const totalDuration = services.reduce(
+        (sum, s) => sum + Number(s.duration),
+        0,
+      );
+
+      const bookingIds = validBookings.map((b) => b.id);
+      const formattedDate = this.formatDateForDisplay(firstBooking.date);
+
+      // Agar bir nechta xizmat bo'lsa, ularning barchasini ko'rsatish
+      const servicesText = services.length > 1
+        ? `💈 <b>Xizmatlar:</b>\n${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}\n\n💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa`
+        : `💈 <b>Xizmat:</b> ${services[0]?.name || 'Noma\'lum'}`;
 
       const commentRequestMessage = `
 <b>✅ Xizmat yakunlandi!</b>
 
 ━━━━━━━━━━━━━━━━━━
 
-💈 <b>Xizmat:</b> ${service.name || 'Noma\'lum'}
+${servicesText}
 👨‍🔧 <b>Barber:</b> ${barber.name || 'Noma\'lum'}
 
 📅 <b>Sana:</b> ${formattedDate}
-🕒 <b>Vaqt:</b> ${booking.time}
+🕒 <b>Vaqt:</b> ${firstBooking.time}
 
 ━━━━━━━━━━━━━━━━━━
 
