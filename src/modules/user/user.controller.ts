@@ -94,13 +94,15 @@ export class UserController {
         },
       }),
       fileFilter: (req, file, cb) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-          return cb(new Error('Faqat rasm fayllari (jpg, jpeg, png, gif) qabul qilinadi'), false);
+        // Faqat MIME type bo'yicha tekshirish - image bo'lsa qabul qilish
+        if (file.mimetype && file.mimetype.startsWith('image/')) {
+          cb(null, true);
+        } else {
+          cb(new Error('Faqat rasm fayllari qabul qilinadi'), false);
         }
-        cb(null, true);
       },
       limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB
+        fileSize: 50 * 1024 * 1024, // 50MB
       },
     }),
   )
@@ -111,8 +113,7 @@ export class UserController {
       new ParseFilePipe({
         fileIsRequired: false,
         validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
+          new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }), // 50MB
         ],
       }),
     )
@@ -196,13 +197,15 @@ export class UserController {
         },
       }),
       fileFilter: (req, file, cb) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-          return cb(new Error('Faqat rasm fayllari (jpg, jpeg, png, gif) qabul qilinadi'), false);
+        // Faqat MIME type bo'yicha tekshirish - image bo'lsa qabul qilish
+        if (file.mimetype && file.mimetype.startsWith('image/')) {
+          cb(null, true);
+        } else {
+          cb(new Error('Faqat rasm fayllari qabul qilinadi'), false);
         }
-        cb(null, true);
       },
       limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB
+        fileSize: 50 * 1024 * 1024, // 50MB
       },
     }),
   )
@@ -214,8 +217,7 @@ export class UserController {
       new ParseFilePipe({
         fileIsRequired: false,
         validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
+          new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }), // 50MB
         ],
       }),
     )
