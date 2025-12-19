@@ -43,13 +43,5 @@ export class CreateAdminDto {
   @IsNotEmpty({ message: 'Parol talab qilinadi' })
   @MinLength(4, { message: 'Parol kamida 4 belgidan iborat bo\'lishi kerak' })
   password: string;
-
-  @ApiPropertyOptional({ 
-    description: 'Profile rasm fayl yo\'li', 
-    example: '/uploads/profiles/admin-123.jpg' 
-  })
-  @IsString()
-  @IsOptional()
-  profile_image?: string;
 }
 

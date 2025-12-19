@@ -12,6 +12,7 @@ import { BarberMenuHandler } from './handlers/barber-menu.handler';
 import { PostHandler } from './handlers/post.handler';
 import { BotSession } from './types/session.types';
 import { UserRole } from '../../common/enums/user.enum';
+import { BookingStatus } from '../../common/enums/booking-status.enum';
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -509,6 +510,184 @@ export class BotService implements OnModuleInit {
         }
       } catch (error) {
         console.error('Failed to complete booking:', error);
+        await ctx.answerCallbackQuery({
+          text: 'Xatolik yuz berdi.',
+          show_alert: true,
+        });
+      }
+    });
+
+    // Barber booking tasdiqlash callback handler
+    this.bot.callbackQuery(/^barber_approve_booking_(\d+)$/, async (ctx) => {
+      const bookingId = parseInt(ctx.match[1]);
+      const tgId = ctx.from?.id.toString();
+      if (!tgId) {
+        await ctx.answerCallbackQuery({
+          text: 'Xatolik yuz berdi.',
+          show_alert: true,
+        });
+        return;
+      }
+
+      // Barber ekanligini tekshirish
+      const user = await this.userService.findByTgId(tgId);
+      if (!user || user.role !== UserRole.BARBER) {
+        await ctx.answerCallbackQuery({
+          text: "Sizda bu amalni bajarish huquqi yo'q.",
+          show_alert: true,
+        });
+        return;
+      }
+
+      try {
+        // Booking'ni topish va barber'ga tegishli ekanligini tekshirish
+        const booking = await this.bookingService.findOne(bookingId);
+        if (!booking) {
+          await ctx.answerCallbackQuery({
+            text: 'Booking topilmadi.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        // Barber faqat o'z booking'larini tasdiqlashi mumkin
+        if (booking.barber_id !== user.id) {
+          await ctx.answerCallbackQuery({
+            text: "Bu booking sizga tegishli emas.",
+            show_alert: true,
+          });
+          return;
+        }
+
+        // Booking status PENDING bo'lishi kerak
+        if (booking.status !== BookingStatus.PENDING) {
+          await ctx.answerCallbackQuery({
+            text: 'Bu booking allaqachon tasdiqlangan yoki bekor qilingan.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        const approvedBooking = await this.bookingService.approve(bookingId);
+        if (approvedBooking) {
+          await ctx.answerCallbackQuery({ text: '✅ Booking tasdiqlandi!' });
+
+          // Xabarni yangilash va yakunlash tugmasini qo'shish
+          const bookingWithRelations =
+            await this.bookingService.findOne(bookingId);
+          if (bookingWithRelations) {
+            const updatedMessage = (ctx.callbackQuery.message?.text || '')
+              .replace('🟡 PENDING', '🟢 APPROVED')
+              .replace(
+                '📋 <b>Status:</b> 🟡 PENDING',
+                '📋 <b>Status:</b> 🟢 APPROVED',
+              );
+
+            // Yakunlash tugmasini qo'shish (faqat admin uchun, barber uchun emas)
+            await ctx.editMessageText(updatedMessage, {
+              parse_mode: 'HTML',
+            });
+
+            // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
+          } else {
+            await ctx.editMessageText(
+              ctx.callbackQuery.message?.text?.replace(
+                '🟡 PENDING',
+                '🟢 APPROVED',
+              ) ||
+                ctx.callbackQuery.message?.text ||
+                '',
+              { parse_mode: 'HTML' },
+            );
+          }
+        } else {
+          await ctx.answerCallbackQuery({
+            text: 'Booking topilmadi.',
+            show_alert: true,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to approve booking:', error);
+        await ctx.answerCallbackQuery({
+          text: 'Xatolik yuz berdi.',
+          show_alert: true,
+        });
+      }
+    });
+
+    // Barber booking bekor qilish callback handler
+    this.bot.callbackQuery(/^barber_reject_booking_(\d+)$/, async (ctx) => {
+      const bookingId = parseInt(ctx.match[1]);
+      const tgId = ctx.from?.id.toString();
+      if (!tgId) {
+        await ctx.answerCallbackQuery({
+          text: 'Xatolik yuz berdi.',
+          show_alert: true,
+        });
+        return;
+      }
+
+      // Barber ekanligini tekshirish
+      const user = await this.userService.findByTgId(tgId);
+      if (!user || user.role !== UserRole.BARBER) {
+        await ctx.answerCallbackQuery({
+          text: "Sizda bu amalni bajarish huquqi yo'q.",
+          show_alert: true,
+        });
+        return;
+      }
+
+      try {
+        // Booking'ni topish va barber'ga tegishli ekanligini tekshirish
+        const booking = await this.bookingService.findOne(bookingId);
+        if (!booking) {
+          await ctx.answerCallbackQuery({
+            text: 'Booking topilmadi.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        // Barber faqat o'z booking'larini bekor qilishi mumkin
+        if (booking.barber_id !== user.id) {
+          await ctx.answerCallbackQuery({
+            text: "Bu booking sizga tegishli emas.",
+            show_alert: true,
+          });
+          return;
+        }
+
+        // Booking status PENDING bo'lishi kerak
+        if (booking.status !== BookingStatus.PENDING) {
+          await ctx.answerCallbackQuery({
+            text: 'Bu booking allaqachon tasdiqlangan yoki bekor qilingan.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        const rejectedBooking = await this.bookingService.reject(bookingId);
+        if (rejectedBooking) {
+          await ctx.answerCallbackQuery({ text: '❌ Booking bekor qilindi.' });
+          await ctx.editMessageText(
+            ctx.callbackQuery.message?.text?.replace(
+              '🟡 PENDING',
+              '🔴 REJECTED',
+            ) ||
+              ctx.callbackQuery.message?.text ||
+              '',
+            { parse_mode: 'HTML' },
+          );
+
+          // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
+        } else {
+          await ctx.answerCallbackQuery({
+            text: 'Booking topilmadi.',
+            show_alert: true,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to reject booking:', error);
         await ctx.answerCallbackQuery({
           text: 'Xatolik yuz berdi.',
           show_alert: true,

@@ -49,44 +49,11 @@ export class AdminController {
   @ApiOperation({
     summary: 'Yangi admin yaratish',
     description:
-      'Faqat SUPER_ADMIN yangi admin yarata oladi. Admin yaratish uchun ism, telefon raqami va parol talab qilinadi. Profile rasm fayli ixtiyoriy.',
+      'Faqat SUPER_ADMIN yangi admin yarata oladi. Admin yaratish uchun ism, telefon raqami va parol talab qilinadi. Ma\'lumotlar JSON formatida yuboriladi.',
   })
-  @ApiConsumes('multipart/form-data')
   @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['name', 'phone_number', 'password'],
-      properties: {
-        name: {
-          type: 'string',
-          description: 'Admin ismi (kamida 2 belgi)',
-          example: 'John Doe',
-          minLength: 2,
-        },
-        phone_number: {
-          type: 'string',
-          description: 'Telefon raqami (E.164 formatida)',
-          example: '+998901234567',
-          pattern: '^\\+?[1-9]\\d{1,14}$',
-        },
-        tg_username: {
-          type: 'string',
-          description: 'Telegram foydalanuvchi nomi (@ belgisiz, ixtiyoriy)',
-          example: 'johndoe',
-        },
-        password: {
-          type: 'string',
-          description: 'Parol (kamida 4 belgi)',
-          example: 'password123',
-          minLength: 4,
-        },
-        profile_image: {
-          type: 'string',
-          format: 'binary',
-          description: 'Profile rasm fayli (image/jpeg, image/png, image/jpg, maksimal 50MB) - ixtiyoriy',
-        },
-      },
-    },
+    type: CreateAdminDto,
+    description: 'Admin ma\'lumotlari (JSON formatida)',
   })
   @ApiResponse({
     status: 201,
@@ -99,7 +66,6 @@ export class AdminController {
         phone_number: { type: 'string', example: '+998901234567', description: 'Telefon raqami' },
         tg_username: { type: 'string', nullable: true, example: 'johndoe', description: 'Telegram username' },
         role: { type: 'string', enum: ['admin'], example: 'admin', description: 'Foydalanuvchi roli' },
-        profile_image: { type: 'string', nullable: true, example: '/uploads/profiles/admin-123.jpg', description: 'Profile rasm yo\'li' },
         created_at: { type: 'string', format: 'date-time', example: '2025-01-25T10:00:00.000Z', description: 'Yaratilgan sana' },
       },
     },
@@ -154,52 +120,13 @@ export class AdminController {
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(
-    FileInterceptor('profile_image', {
-      storage: diskStorage({
-        destination: './uploads/profiles',
-        filename: (req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          cb(null, `admin-${uniqueSuffix}${ext}`);
-        },
-      }),
-      fileFilter: (req, file, cb) => {
-        if (file.mimetype && file.mimetype.startsWith('image/')) {
-          cb(null, true);
-        } else {
-          cb(new BadRequestException('Faqat rasm fayllari qabul qilinadi (image/jpeg, image/png, image/jpg)'), false);
-        }
-      },
-      limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB
-      },
-    }),
-  )
   async create(
     @Body() createAdminDto: CreateAdminDto,
     @Request() req: ExpressRequest & { user: TokenPayload },
-    @UploadedFile(
-      new ParseFilePipe({
-        fileIsRequired: false,
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }), // 50MB
-        ],
-      }),
-    )
-    file?: Express.Multer.File | undefined,
   ) {
-    // File yuborilgan bo'lsa, file path'ni DTO'ga qo'shish
-    if (file) {
-      createAdminDto.profile_image = `/uploads/profiles/${file.filename}`;
-    }
-
     // Bo'sh string'larni undefined qilish
     if (createAdminDto.tg_username === '') {
       createAdminDto.tg_username = undefined;
-    }
-    if (createAdminDto.profile_image === '') {
-      createAdminDto.profile_image = undefined;
     }
 
     return this.adminService.createAdmin(createAdminDto, req.user);
@@ -262,7 +189,6 @@ export class AdminController {
         phone_number: { type: 'string', nullable: true, example: '+998901234567', description: 'Telefon raqami' },
         tg_username: { type: 'string', nullable: true, example: 'johndoe', description: 'Telegram username' },
         role: { type: 'string', enum: ['admin'], example: 'admin', description: 'Foydalanuvchi roli' },
-        profile_image: { type: 'string', nullable: true, example: '/uploads/profiles/admin-123.jpg', description: 'Profile rasm yo\'li' },
         created_at: { type: 'string', format: 'date-time', example: '2025-01-25T10:00:00.000Z', description: 'Yaratilgan sana' },
       },
     },
@@ -361,7 +287,6 @@ export class AdminController {
         phone_number: { type: 'string', nullable: true, example: '+998901234567', description: 'Telefon raqami' },
         tg_username: { type: 'string', nullable: true, example: 'johndoe', description: 'Telegram username' },
         role: { type: 'string', enum: ['admin'], example: 'admin', description: 'Foydalanuvchi roli' },
-        profile_image: { type: 'string', nullable: true, example: '/uploads/profiles/admin-123.jpg', description: 'Profile rasm yo\'li' },
         created_at: { type: 'string', format: 'date-time', example: '2025-01-25T10:00:00.000Z', description: 'Yaratilgan sana' },
       },
     },

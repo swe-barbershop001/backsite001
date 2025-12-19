@@ -57,7 +57,6 @@ export class AdminService {
         phone_number: createAdminDto.phone_number.trim(),
         tg_username: createAdminDto.tg_username?.trim(),
         password: createAdminDto.password,
-        profile_image: createAdminDto.profile_image,
         role: UserRole.ADMIN,
       };
 

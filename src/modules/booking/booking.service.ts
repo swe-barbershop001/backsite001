@@ -255,6 +255,8 @@ ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'
       keyboard
         .text('✅ Tasdiqlash', `approve_booking_${booking.id}`)
         .text('❌ Bekor qilish', `reject_booking_${booking.id}`)
+        .row()
+        .text('⬅️ Menyuga qaytish', 'menu_back')
         .row();
 
       // Barcha admin'larga Telegram orqali xabar yuborish
@@ -428,10 +430,20 @@ ${services
 ━━━━━━━━━━━━━━━━━━
 `;
 
+      // Inline keyboard yaratish - tasdiqlash va bekor qilish tugmalari (barber uchun)
+      const keyboard = new InlineKeyboard();
+      keyboard
+        .text('✅ Tasdiqlash', `barber_approve_booking_${booking.id}`)
+        .text('❌ Bekor qilish', `barber_reject_booking_${booking.id}`)
+        .row()
+        .text('⬅️ Menyuga qaytish', 'menu_back')
+        .row();
+
       // Barber'ga Telegram orqali xabar yuborish
       try {
         await this.botService.sendMessage(barber.tg_id, barberMessage, {
           parse_mode: 'HTML',
+          reply_markup: keyboard,
         });
       } catch (error: any) {
         // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
@@ -541,10 +553,15 @@ ${services
 Xizmat yakunlangandan so'ng sizdan fikringizni so'rashadi.
 `;
 
+      // Inline keyboard yaratish - menyuga qaytish tugmasi (client uchun)
+      const keyboard = new InlineKeyboard();
+      keyboard.text('⬅️ Menyuga qaytish', 'menu_back').row();
+
       // Client'ga Telegram orqali xabar yuborish
       try {
         await this.botService.sendMessage(client.tg_id, clientMessage, {
           parse_mode: 'HTML',
+          reply_markup: keyboard,
         });
       } catch (error: any) {
         // Error handling sendMessage ichida qilinadi, lekin bu yerda ham log qilamiz
