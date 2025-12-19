@@ -3,12 +3,14 @@ import { BotService } from './bot.service';
 import { UserModule } from '../user/user.module';
 import { BarberServiceModule } from '../barber-service/barber-service.module';
 import { BookingModule } from '../booking/booking.module';
+import { PostModule } from '../post/post.module';
 
 @Module({
   imports: [
     UserModule,
     BarberServiceModule,
     forwardRef(() => BookingModule),
+    forwardRef(() => PostModule),
   ],
   providers: [BotService],
   exports: [BotService],

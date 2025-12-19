@@ -12,10 +12,16 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Uploads folder yaratish (agar mavjud bo'lmasa)
-  const uploadsDir = join(process.cwd(), 'uploads', 'profiles');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-    console.log('[Main] Uploads folder yaratildi:', uploadsDir);
+  const profilesDir = join(process.cwd(), 'uploads', 'profiles');
+  if (!fs.existsSync(profilesDir)) {
+    fs.mkdirSync(profilesDir, { recursive: true });
+    console.log('[Main] Profiles uploads folder yaratildi:', profilesDir);
+  }
+
+  const postsDir = join(process.cwd(), 'uploads', 'posts');
+  if (!fs.existsSync(postsDir)) {
+    fs.mkdirSync(postsDir, { recursive: true });
+    console.log('[Main] Posts uploads folder yaratildi:', postsDir);
   }
 
   // Static files serving - uploads folder'ni public qilish

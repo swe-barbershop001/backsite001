@@ -34,6 +34,8 @@ export const getAdminMainMenu = () => {
   return new InlineKeyboard()
     .text('📋 Yakunlanmagan bookinglar', 'admin_bookings')
     .row()
+    .text('📢 Post yuborish', 'admin_post')
+    .row()
     .text('👤 Profil', 'admin_profile');
 };
 

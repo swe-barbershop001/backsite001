@@ -1,52 +1,63 @@
 import {
   IsString,
   IsOptional,
-  IsEnum,
-  IsBoolean,
   IsNotEmpty,
+  IsBoolean,
   Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '../../../common/enums/user.enum';
 
-export class CreateUserDto {
-  @ApiPropertyOptional({ description: 'Foydalanuvchi ismi', example: 'John Doe' })
+export class CreateBarberDto {
+  @ApiProperty({ 
+    description: 'Barber ismi', 
+    example: 'Ahmad Karimov' 
+  })
   @IsString()
-  @IsOptional()
-  name?: string;
+  @IsNotEmpty()
+  name: string;
 
-  @ApiPropertyOptional({ description: 'Telefon raqami', example: '+998901234567' })
+  @ApiPropertyOptional({ 
+    description: 'Telefon raqami', 
+    example: '+998901234567' 
+  })
   @IsString()
   @IsOptional()
   phone_number?: string;
 
-  // @ApiPropertyOptional({ description: 'Telegram ID', example: '123456789' })
+  @ApiPropertyOptional({ 
+    description: 'Telegram ID', 
+    example: '123456789' 
+  })
   @IsString()
   @IsOptional()
   tg_id?: string;
 
-  @ApiPropertyOptional({ description: 'Telegram foydalanuvchi nomi', example: 'johndoe' })
+  @ApiPropertyOptional({ 
+    description: 'Telegram foydalanuvchi nomi', 
+    example: 'ahmad_barber' 
+  })
   @IsString()
   @IsOptional()
   tg_username?: string;
 
-  @ApiPropertyOptional({ description: 'Parol (hash qilinadi)', example: 'password123' })
+  @ApiPropertyOptional({ 
+    description: 'Parol (hash qilinadi)', 
+    example: 'password123' 
+  })
   @IsString()
   @IsOptional()
   password?: string;
 
-  @ApiPropertyOptional({ description: 'Foydalanuvchi roli', enum: UserRole, example: UserRole.BARBER })
-  @IsEnum(UserRole)
-  @IsOptional()
-  role?: UserRole;
-
-  @ApiPropertyOptional({ description: 'Sartarosh ishlayaptimi?', example: true })
+  @ApiPropertyOptional({ 
+    description: 'Sartarosh ishlayaptimi?', 
+    example: false 
+  })
   @IsBoolean()
   @IsOptional()
   working?: boolean;
 
   @ApiPropertyOptional({ 
-    description: 'Sartarosh ish boshlash vaqti (HH:mm formatida)', 
+    description: 'Ish boshlash vaqti (HH:mm formatida)', 
     example: '09:00',
     pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$'
   })
@@ -58,7 +69,7 @@ export class CreateUserDto {
   work_start_time?: string;
 
   @ApiPropertyOptional({ 
-    description: 'Sartarosh ish tugash vaqti (HH:mm formatida)', 
+    description: 'Ish tugash vaqti (HH:mm formatida)', 
     example: '18:00',
     pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$'
   })
@@ -69,8 +80,12 @@ export class CreateUserDto {
   })
   work_end_time?: string;
 
-  @ApiPropertyOptional({ description: 'Profile rasm fayl yo\'li', example: '/uploads/profiles/user-123.jpg' })
+  @ApiPropertyOptional({ 
+    description: 'Profile rasm fayl yo\'li', 
+    example: '/uploads/profiles/barber-123.jpg' 
+  })
   @IsString()
   @IsOptional()
   profile_image?: string;
 }
+

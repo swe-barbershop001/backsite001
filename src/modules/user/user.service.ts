@@ -107,8 +107,17 @@ export class UserService {
       // Bot orqali ro'yxatdan o'tgan foydalanuvchilar uchun password kerak emas
     }
 
-    const user = this.userRepository.create(createUserDto);
-    return await this.userRepository.save(user);
+    // Working field'ini to'g'rilash - agar undefined bo'lsa, null qilish
+    // TypeORM null'ni qabul qiladi, lekin undefined'ni qabul qilmaydi
+    const userData: any = { ...createUserDto };
+    if (userData.working === undefined) {
+      userData.working = false; // Default qiymat
+    }
+
+    const user = this.userRepository.create(userData);
+    const savedUser = await this.userRepository.save(user);
+    // TypeORM save() metodi array yoki bitta entity qaytaradi, biz bitta entity kutilmoqdamiz
+    return Array.isArray(savedUser) ? savedUser[0] : savedUser;
   }
 
   async update(
@@ -316,5 +325,20 @@ export class UserService {
     return await this.userRepository.findOne({
       where: { tg_username: tgUsername, role: UserRole.BARBER },
     });
+  }
+
+  /**
+   * Barcha clientlarni (tg_id bo'lganlar) qaytaradi
+   * Botga start bosgan barcha clientlar uchun
+   */
+  async findAllClientsWithTgId(): Promise<User[]> {
+    return await this.userRepository.find({
+      where: { 
+        role: UserRole.CLIENT,
+      },
+      select: ['id', 'name', 'phone_number', 'tg_id', 'tg_username', 'created_at'],
+    }).then(users => 
+      users.filter(user => user.tg_id !== null && user.tg_id !== undefined && user.tg_id !== '')
+    );
   }
 }

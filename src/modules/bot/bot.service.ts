@@ -4,10 +4,12 @@ import { ConfigService } from '@nestjs/config';
 import { UserService } from '../user/user.service';
 import { BarberServiceService } from '../barber-service/barber-service.service';
 import { BookingService } from '../booking/booking.service';
+import { PostService } from '../post/post.service';
 import { RegistrationHandler } from './handlers/registration.handler';
 import { BookingHandler } from './handlers/booking.handler';
 import { ClientMenuHandler } from './handlers/client-menu.handler';
 import { BarberMenuHandler } from './handlers/barber-menu.handler';
+import { PostHandler } from './handlers/post.handler';
 import { BotSession } from './types/session.types';
 import { UserRole } from '../../common/enums/user.enum';
 
@@ -18,6 +20,7 @@ export class BotService implements OnModuleInit {
   private bookingHandler: BookingHandler;
   private clientMenuHandler: ClientMenuHandler;
   private barberMenuHandler: BarberMenuHandler;
+  private postHandler: PostHandler;
 
   constructor(
     private configService: ConfigService,
@@ -25,6 +28,8 @@ export class BotService implements OnModuleInit {
     private barberServiceService: BarberServiceService,
     @Inject(forwardRef(() => BookingService))
     private bookingService: BookingService,
+    @Inject(forwardRef(() => PostService))
+    private postService: PostService,
   ) {
     const token = this.configService.get<string>('BOT_TOKEN');
     if (!token) {
@@ -54,6 +59,10 @@ export class BotService implements OnModuleInit {
       this.userService,
       this.barberServiceService,
       this.bookingService,
+    );
+    this.postHandler = new PostHandler(
+      this.userService,
+      this.postService,
     );
 
     // Setup session middleware
@@ -258,6 +267,33 @@ export class BotService implements OnModuleInit {
     // Admin bookinglar callback handler
     this.bot.callbackQuery('admin_bookings', async (ctx) => {
       await this.clientMenuHandler.handleAdminBookings(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Admin post yuborish callback handler
+    this.bot.callbackQuery('admin_post', async (ctx) => {
+      await this.postHandler.handlePostCreation(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Post tasdiqlash va bekor qilish callback handler'lar
+    this.bot.callbackQuery('confirm_post', async (ctx) => {
+      await this.postHandler.handleConfirmPost(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('cancel_post', async (ctx) => {
+      await this.postHandler.handleCancelPost(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('skip_image', async (ctx) => {
+      await this.postHandler.handleSkipImage(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('skip_title', async (ctx) => {
+      await this.postHandler.handleSkipTitle(ctx);
       await ctx.answerCallbackQuery();
     });
 
@@ -515,10 +551,38 @@ export class BotService implements OnModuleInit {
       }
     });
 
+    // Handle photo messages (for post creation)
+    this.bot.on('message:photo', async (ctx) => {
+      const userId = ctx.from?.id;
+      if (!userId) return;
+
+      const state = this.postHandler.getPostState(userId);
+      if (state && state.step === 'waiting_image') {
+        await this.postHandler.handlePhoto(ctx);
+        return;
+      }
+    });
+
     // Handle text messages
     this.bot.on('message:text', async (ctx) => {
       const userId = ctx.from?.id;
       if (!userId) return;
+
+      // Check if user is in post creation flow
+      const postState = this.postHandler.getPostState(userId);
+      if (postState) {
+        if (postState.step === 'waiting_image') {
+          // Rasm URL sifatida qabul qilish
+          await this.postHandler.handlePhoto(ctx);
+          return;
+        } else if (postState.step === 'waiting_title') {
+          await this.postHandler.handleTitle(ctx);
+          return;
+        } else if (postState.step === 'waiting_description') {
+          await this.postHandler.handleDescription(ctx);
+          return;
+        }
+      }
 
       // Check if user is in registration flow
       if (this.registrationHandler.isInRegistration(userId)) {
@@ -600,6 +664,31 @@ export class BotService implements OnModuleInit {
         return;
       }
       console.error(`Failed to send message to ${chatId}:`, error);
+      throw error;
+    }
+  }
+
+  async sendPhoto(
+    chatId: string,
+    photoUrl: string,
+    caption?: string,
+    options?: { parse_mode?: 'HTML' | 'Markdown'; reply_markup?: any },
+  ): Promise<void> {
+    try {
+      await this.bot.api.sendPhoto(chatId, photoUrl, {
+        caption,
+        ...options,
+      });
+    } catch (error: any) {
+      // "chat not found" xatoligini ignore qilish (test ma'lumotlari yoki bot'ga yozmagan user'lar uchun)
+      if (
+        error?.description?.includes('chat not found') ||
+        error?.description?.includes('Bad Request')
+      ) {
+        // Silent fail - warning log qilmaymiz, chunki bu test ma'lumotlari uchun normal
+        return;
+      }
+      console.error(`Failed to send photo to ${chatId}:`, error);
       throw error;
     }
   }

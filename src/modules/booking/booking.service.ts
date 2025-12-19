@@ -221,15 +221,24 @@ export class BookingService {
         year: 'numeric',
       });
 
+      // Client ma'lumotlarini formatlash
+      const clientInfo = `
+👤 <b>Mijoz:</b> ${client.name || "Ism ko'rsatilmagan"}
+📞 <b>Telefon:</b> ${client.phone_number || "Yo'q"}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}` : "💬 <b>Telegram:</b> Yo'q"}`;
+
+      // Barber ma'lumotlarini formatlash
+      const barberInfo = `
+👨‍🔧 <b>Sartarosh:</b> ${barber.name || "Ism ko'rsatilmagan"}
+📞 <b>Telefon:</b> ${barber.phone_number || "Yo'q"}
+${barber.tg_username ? `💬 <b>Telegram:</b> @${barber.tg_username}` : "💬 <b>Telegram:</b> Yo'q"}`;
+
       const adminMessage = `
 <b>🆕 Yangi bron yaratildi!</b>
 
 ━━━━━━━━━━━━━━━━━━
-
-👤 <b>Mijoz:</b> ${client.name || client.phone_number}
-📞 <b>Telefon:</b> ${client.phone_number || "Yo'q"}
-${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
-👨‍🔧 <b>Sartarosh:</b> ${barber.name}
+${clientInfo}
+${barberInfo}
 💈 <b>Xizmatlar:</b>
 ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'm (${s.duration} daqiqa)`).join('\n')}
 
@@ -385,14 +394,24 @@ ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'
         year: 'numeric',
       });
 
+      // Client ma'lumotlarini formatlash
+      const clientInfo = `
+👤 <b>Mijoz:</b> ${client.name || "Ism ko'rsatilmagan"}
+📞 <b>Telefon:</b> ${client.phone_number || "Yo'q"}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}` : "💬 <b>Telegram:</b> Yo'q"}`;
+
+      // Barber ma'lumotlarini formatlash
+      const barberInfo = `
+👨‍🔧 <b>Sartarosh:</b> ${barber.name || "Ism ko'rsatilmagan"}
+📞 <b>Telefon:</b> ${barber.phone_number || "Yo'q"}
+${barber.tg_username ? `💬 <b>Telegram:</b> @${barber.tg_username}` : "💬 <b>Telegram:</b> Yo'q"}`;
+
       const barberMessage = `
 <b>🆕 Yangi bron yaratildi!</b>
 
 ━━━━━━━━━━━━━━━━━━
-
-👤 <b>Mijoz:</b> ${client.name || client.phone_number}
-${client.phone_number ? `📞 <b>Telefon:</b> ${client.phone_number}\n` : ''}
-${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+${clientInfo}
+${barberInfo}
 💈 <b>Xizmatlar:</b>
 ${services
   .map(
@@ -484,12 +503,24 @@ ${services
         year: 'numeric',
       });
 
+      // Client ma'lumotlarini formatlash
+      const clientInfo = `
+👤 <b>Mijoz:</b> ${client.name || "Ism ko'rsatilmagan"}
+📞 <b>Telefon:</b> ${client.phone_number || "Yo'q"}
+${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}` : "💬 <b>Telegram:</b> Yo'q"}`;
+
+      // Barber ma'lumotlarini formatlash
+      const barberInfo = `
+👨‍🔧 <b>Sartarosh:</b> ${barber.name || "Ism ko'rsatilmagan"}
+📞 <b>Telefon:</b> ${barber.phone_number || "Yo'q"}
+${barber.tg_username ? `💬 <b>Telegram:</b> @${barber.tg_username}` : "💬 <b>Telegram:</b> Yo'q"}`;
+
       const clientMessage = `
 <b>✅ Booking muvaffaqiyatli yaratildi!</b>
 
 ━━━━━━━━━━━━━━━━━━
-
-👨‍🔧 <b>Barber:</b> ${barber.name}
+${clientInfo}
+${barberInfo}
 💈 <b>Xizmatlar:</b>
 ${services
   .map(

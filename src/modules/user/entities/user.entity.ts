@@ -36,7 +36,7 @@ export class User {
   role: UserRole;
 
   @Column({ default: false, nullable: true })
-  working: boolean; // Barber uchun ishlayapti/ishlamayapti
+  working?: boolean; // Barber uchun ishlayapti/ishlamayapti
 
   @Column({ nullable: true })
   work_start_time?: string; // Barber uchun ish boshlanish vaqti (HH:mm formatida, masalan: "09:00")

@@ -6,6 +6,10 @@ import { UserModule } from './modules/user/user.module';
 import { BarberServiceModule } from './modules/barber-service/barber-service.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { BotModule } from './modules/bot/bot.module';
+import { PostModule } from './modules/post/post.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { BarberModule } from './modules/barber/barber.module';
+import { ClientModule } from './modules/client/client.module';
 import config, { envValidation } from './config';
 import { AuthModule } from './modules/auth/auth.module';
 import { InitService } from './common/services/init.service';
@@ -30,9 +34,13 @@ import { ScheduleModule } from '@nestjs/schedule';
     TypeOrmModule.forFeature([User]),
     AuthModule,
     UserModule,
+    AdminModule,
+    BarberModule,
+    ClientModule,
     BarberServiceModule,
     BookingModule,
     BotModule,
+    PostModule,
     CleanupModule,
   ],
   providers: [InitService],
