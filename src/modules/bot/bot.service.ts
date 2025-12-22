@@ -3,6 +3,7 @@ import { Bot, Context, session, InlineKeyboard } from 'grammy';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../user/user.service';
 import { BarberServiceService } from '../barber-service/barber-service.service';
+import { ServiceCategoryService } from '../service-category/service-category.service';
 import { BookingService } from '../booking/booking.service';
 import { PostService } from '../post/post.service';
 import { RegistrationHandler } from './handlers/registration.handler';
@@ -27,6 +28,7 @@ export class BotService implements OnModuleInit {
     private configService: ConfigService,
     private userService: UserService,
     private barberServiceService: BarberServiceService,
+    private serviceCategoryService: ServiceCategoryService,
     @Inject(forwardRef(() => BookingService))
     private bookingService: BookingService,
     @Inject(forwardRef(() => PostService))
@@ -48,6 +50,7 @@ export class BotService implements OnModuleInit {
     this.bookingHandler = new BookingHandler(
       this.userService,
       this.barberServiceService,
+      this.serviceCategoryService,
       this.bookingService,
       this.configService,
     );
@@ -167,6 +170,21 @@ export class BotService implements OnModuleInit {
     });
 
     this.bot.callbackQuery(/^barber_select_(\d+)$/, async (ctx) => {
+      const barberId = parseInt(ctx.match[1]);
+      await this.bookingHandler.handleBarberSelect(ctx, barberId);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Category selection
+    this.bot.callbackQuery(/^category_select_(\d+)_(\d+)$/, async (ctx) => {
+      const categoryId = parseInt(ctx.match[1]);
+      const barberId = parseInt(ctx.match[2]);
+      await this.bookingHandler.handleCategorySelect(ctx, categoryId, barberId);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Back to categories
+    this.bot.callbackQuery(/^back_to_categories_(\d+)$/, async (ctx) => {
       const barberId = parseInt(ctx.match[1]);
       await this.bookingHandler.handleBarberSelect(ctx, barberId);
       await ctx.answerCallbackQuery();

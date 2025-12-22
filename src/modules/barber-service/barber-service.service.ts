@@ -20,12 +20,24 @@ export class BarberServiceService {
   }
 
   async findAll(): Promise<BarberServiceEntity[]> {
-    return await this.barberServiceRepository.find();
+    return await this.barberServiceRepository.find({
+      relations: ['category'],
+      order: { created_at: 'ASC' },
+    });
+  }
+
+  async findByCategory(categoryId: number): Promise<BarberServiceEntity[]> {
+    return await this.barberServiceRepository.find({
+      where: { category_id: categoryId },
+      relations: ['category'],
+      order: { created_at: 'ASC' },
+    });
   }
 
   async findOne(id: number): Promise<BarberServiceEntity> {
     const service = await this.barberServiceRepository.findOne({
       where: { id },
+      relations: ['category'],
     });
     
     if (!service) {

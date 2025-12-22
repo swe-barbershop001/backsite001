@@ -3,17 +3,30 @@ import { UserService } from '../../user/user.service';
 import { UserRole } from '../../../common/enums/user.enum';
 import { BarberServiceService } from '../../barber-service/barber-service.service';
 import { BarberService as BarberServiceEntity } from '../../barber-service/entities/barber-service.entity';
+import { ServiceCategoryService } from '../../service-category/service-category.service';
 import { BookingService } from '../../booking/booking.service';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
 import { ConfigService } from '@nestjs/config';
-import { getClientMainMenu, getBarberMainMenu, getAdminMainMenu } from '../keyboards/main.menu';
+import {
+  getClientMainMenu,
+  getBarberMainMenu,
+  getAdminMainMenu,
+} from '../keyboards/main.menu';
 
 export class BookingHandler {
   private bookingStates = new Map<
     number,
     {
-      step: 'barber' | 'service' | 'date' | 'time' | 'time_input' | 'comment';
+      step:
+        | 'barber'
+        | 'category'
+        | 'service'
+        | 'date'
+        | 'time'
+        | 'time_input'
+        | 'comment';
       barberId?: number;
+      categoryId?: number;
       serviceIds?: number[];
       date?: string;
       bookingIds?: number[]; // Yaratilgan booking ID'lari
@@ -23,6 +36,7 @@ export class BookingHandler {
   constructor(
     private userService: UserService,
     private barberServiceService: BarberServiceService,
+    private serviceCategoryService: ServiceCategoryService,
     private bookingService: BookingService,
     private configService: ConfigService,
   ) {}
@@ -47,10 +61,13 @@ export class BookingHandler {
     // Create inline keyboard for barbers
     const keyboard = new InlineKeyboard();
     barbers.forEach((barber) => {
-      const workTime = barber.work_start_time && barber.work_end_time
-        ? ` (${barber.work_start_time} - ${barber.work_end_time})`
+      const workTime =
+        barber.work_start_time && barber.work_end_time
+          ? ` (${barber.work_start_time} - ${barber.work_end_time})`
+          : '';
+      const usernameDisplay = barber.tg_username
+        ? ` (@${barber.tg_username})`
         : '';
-      const usernameDisplay = barber.tg_username ? ` (@${barber.tg_username})` : '';
       keyboard
         .text(
           `👤 ${barber.name}${usernameDisplay}${workTime}`,
@@ -136,9 +153,10 @@ Iltimos, xizmat olish uchun barberni tanlang:
     );
     const selectedCount = selectedServices.length;
 
-    const workTime = barber.work_start_time && barber.work_end_time
-      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
-      : '';
+    const workTime =
+      barber.work_start_time && barber.work_end_time
+        ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+        : '';
 
     const message = `
 <b>💈 Barber:</b> ${barber.name}${workTime}
@@ -173,10 +191,78 @@ Iltimos, xizmat olish uchun barberni tanlang:
       return ctx.reply('Bu barber hozir ishlamayapti.');
     }
 
-    // Get all services
-    const services = await this.barberServiceService.findAll();
+    // Get all categories
+    const categories = await this.serviceCategoryService.findAll();
+    if (categories.length === 0) {
+      return ctx.reply("Hozircha mavjud kategoriyalar yo'q.");
+    }
+
+    // Create inline keyboard for categories
+    const keyboard = new InlineKeyboard();
+    categories.forEach((category) => {
+      keyboard
+        .text(
+          `${category.icon || '📁'} ${category.name}`,
+          `category_select_${category.id}_${barberId}`,
+        )
+        .row();
+    });
+    keyboard.text('⬅️ Ortga qaytish', 'back_to_barbers').row();
+
+    this.bookingStates.set(ctx.from.id, {
+      step: 'category',
+      barberId,
+    });
+
+    const workTime =
+      barber.work_start_time && barber.work_end_time
+        ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+        : '';
+
+    const message = `
+<b>💈 Barber:</b> ${barber.name}${workTime}
+
+━━━━━━━━━━━━━━━━━━
+
+<b>📂 Xizmat kategoriyasini tanlang</b>
+
+━━━━━━━━━━━━━━━━━━
+`;
+
+    // Eski xabarni yangi xabar bilan almashtirish
+    try {
+      return await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      // Agar xabarni tahrirlab bo'lmasa, yangi xabar yuborish
+      return ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
+  }
+
+  async handleCategorySelect(
+    ctx: Context,
+    categoryId: number,
+    barberId: number,
+  ) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId || !ctx.from) return;
+
+    const barber = await this.userService.findOne(barberId);
+    if (!barber) {
+      return ctx.reply('Barber topilmadi.');
+    }
+
+    // Get services by category
+    const services = await this.barberServiceService.findByCategory(categoryId);
     if (services.length === 0) {
-      return ctx.reply("Hozircha mavjud xizmatlar yo'q.");
+      return ctx.reply(
+        "Bu kategoriyada xizmatlar yo'q. Iltimos, boshqa kategoriya tanlang.",
+      );
     }
 
     // Create inline keyboard for services (multiple selection)
@@ -190,22 +276,31 @@ Iltimos, xizmat olish uchun barberni tanlang:
         .row();
     });
     keyboard
-      .text('⬅️ Ortga qaytish', 'back_to_barbers')
+      .text('⬅️ Ortga (Kategoriya)', `back_to_categories_${barberId}`)
       .text('✅ Davom etish', 'service_continue')
       .row();
 
     this.bookingStates.set(ctx.from.id, {
       step: 'service',
       barberId,
+      categoryId,
       serviceIds: [],
     });
 
-    const workTime = barber.work_start_time && barber.work_end_time
-      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
-      : '';
+    const workTime =
+      barber.work_start_time && barber.work_end_time
+        ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+        : '';
+
+    const category = services[0]?.category;
+    const categoryName = category
+      ? `${category.icon || '📁'} ${category.name}`
+      : 'Xizmatlar';
 
     const message = `
 <b>💈 Barber:</b> ${barber.name}${workTime}
+
+<b>📂 Kategoriya:</b> ${categoryName}
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -278,9 +373,10 @@ Iltimos, xizmat olish uchun barberni tanlang:
       .map((s) => `✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
       .join('\n');
 
-    const workTime = barber.work_start_time && barber.work_end_time
-      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
-      : '';
+    const workTime =
+      barber.work_start_time && barber.work_end_time
+        ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+        : '';
 
     // Premium card message
     const message = `
@@ -319,7 +415,7 @@ ${servicesList}
         month: 'short',
       });
       const dateDisplay = `📅 ${weekday} • ${day}-${month}`;
-      
+
       // Har ikkinchi tugmadan keyin yangi qator
       if (index % 2 === 0) {
         keyboard.text(
@@ -335,7 +431,7 @@ ${servicesList}
           .row();
       }
     });
-    
+
     // Agar tugmalar soni toq bo'lsa, oxirgi qatorni yopish
     if (dates.length % 2 !== 0) {
       keyboard.row();
@@ -362,7 +458,6 @@ ${servicesList}
       });
     }
   }
-
 
   async handleDateSelection(
     ctx: Context,
@@ -404,7 +499,7 @@ ${servicesList}
 
     // Generate time slots based on barber's work hours
     const timeSlots: string[] = [];
-    const startHour = barber.work_start_time 
+    const startHour = barber.work_start_time
       ? parseInt(barber.work_start_time.split(':')[0])
       : 9;
     const endHour = barber.work_end_time
@@ -464,14 +559,17 @@ Quyidagi vaqtlardan birini tanlang:
       if (index > 0 && index % 3 === 0) {
         keyboard.row();
       }
-      keyboard.text(`🕒 ${time}`, `time_${date}_${time}_${barberId}_${serviceIdsStr}`);
+      keyboard.text(
+        `🕒 ${time}`,
+        `time_${date}_${time}_${barberId}_${serviceIdsStr}`,
+      );
     });
-    
+
     // Agar tugmalar soni 3 ga bo'linmasa, oxirgi qatorni yopish
     if (availableSlots.length % 3 !== 0) {
       keyboard.row();
     }
-    
+
     // Vaqtni o'zim kiritaman tugmasi (alohida qatorda, to'liq kenglikda)
     keyboard
       .row()
@@ -480,9 +578,11 @@ Quyidagi vaqtlardan birini tanlang:
         `time_input_${date}_${barberId}_${serviceIdsStr}`,
       )
       .row();
-    
+
     // Ortga qaytish tugmasi (alohida qatorda)
-    keyboard.text('⬅️ Ortga qaytish', `back_to_date_${barberId}_${serviceIdsStr}`).row();
+    keyboard
+      .text('⬅️ Ortga qaytish', `back_to_date_${barberId}_${serviceIdsStr}`)
+      .row();
 
     this.bookingStates.set(ctx.from.id, {
       step: 'time',
@@ -520,7 +620,9 @@ Quyidagi vaqtlardan birini tanlang:
     if (!client) return;
 
     if (!client.phone_number) {
-      return ctx.reply('Telefon raqamingiz ro\'yxatdan o\'tmagan. Iltimos, profilni yangilang.');
+      return ctx.reply(
+        "Telefon raqamingiz ro'yxatdan o'tmagan. Iltimos, profilni yangilang.",
+      );
     }
 
     const phoneNumber = client.phone_number; // TypeScript uchun
@@ -561,16 +663,16 @@ Quyidagi vaqtlardan birini tanlang:
       return ctx.reply('Ushbu vaqt band. Iltimos, boshqa vaqtni tanlang.');
     }
 
-      // Create bookings for each service
+    // Create bookings for each service
     try {
       const booking = await this.bookingService.create({
         phone_number: phoneNumber,
         barber_id: barberId,
-        service_ids: selectedServices.map(s => s.id),
+        service_ids: selectedServices.map((s) => s.id),
         date,
         time,
       });
-      
+
       const createdBookings = Array.isArray(booking) ? booking : [booking];
 
       // Clear booking state - comment so'ralmaydi, booking yakunlangandan keyin so'raladi
@@ -606,7 +708,10 @@ Quyidagi vaqtlardan birini tanlang:
     const bookings = await this.bookingService.findByClientId(client.id);
 
     if (bookings.length === 0) {
-      const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'menu_back');
+      const keyboard = new InlineKeyboard().text(
+        '⬅️ Ortga qaytish',
+        'menu_back',
+      );
       try {
         return await ctx.editMessageText("Sizda hozircha bookinglar yo'q.", {
           reply_markup: keyboard,
@@ -634,7 +739,7 @@ Quyidagi vaqtlardan birini tanlang:
 
     // Generate premium HTML cards for each booking
     let message = `🗂 <b>Sizning bookinglaringiz:</b>\n\n`;
-    
+
     bookings.forEach((booking, index) => {
       let statusDisplay = '';
       if (booking.status === BookingStatus.APPROVED) {
@@ -648,9 +753,9 @@ Quyidagi vaqtlardan birini tanlang:
       } else {
         statusDisplay = '🟡 PENDING';
       }
-      
+
       const formattedDate = formatDate(booking.date);
-      
+
       message += `
 <b>🔹 Booking #${index + 1}</b>
 
@@ -709,9 +814,10 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
       date,
     });
 
-    const workTimeRange = barber.work_start_time && barber.work_end_time
-      ? `${barber.work_start_time} - ${barber.work_end_time}`
-      : '09:00 - 18:00';
+    const workTimeRange =
+      barber.work_start_time && barber.work_end_time
+        ? `${barber.work_start_time} - ${barber.work_end_time}`
+        : '09:00 - 18:00';
 
     return ctx.reply(
       `Vaqtni kiriting (HH:mm formatida):\n\nMasalan: 14:30\n\nIltimos, barberning ish vaqti oralig'idagi vaqtni kiriting (${workTimeRange}).`,
@@ -736,14 +842,12 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
 
       const menu = getClientMainMenu();
       return ctx.reply(
-        '✅ Izoh muvaffaqiyatli qo\'shildi!\n\nAsosiy menyuga qaytingiz.',
+        "✅ Izoh muvaffaqiyatli qo'shildi!\n\nAsosiy menyuga qaytingiz.",
         { reply_markup: menu },
       );
     } catch (error) {
       console.error('Failed to update comment:', error);
-      return ctx.reply(
-        "Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
-      );
+      return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     }
   }
 
@@ -774,10 +878,7 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
     }
 
     const menu = getClientMainMenu();
-    return ctx.reply(
-      'Asosiy menyuga qaytingiz.',
-      { reply_markup: menu },
-    );
+    return ctx.reply('Asosiy menyuga qaytingiz.', { reply_markup: menu });
   }
 
   async handleTimeInputText(ctx: Context, timeText: string) {
@@ -803,7 +904,7 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
     const [hours, minutes] = timeText.split(':').map(Number);
 
     // Check if time is within barber's working hours
-    const startHour = barber.work_start_time 
+    const startHour = barber.work_start_time
       ? parseInt(barber.work_start_time.split(':')[0])
       : 9;
     const endHour = barber.work_end_time
@@ -811,9 +912,10 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
       : 18;
 
     if (hours < startHour || hours >= endHour) {
-      const workTimeRange = barber.work_start_time && barber.work_end_time
-        ? `${barber.work_start_time} - ${barber.work_end_time}`
-        : '09:00 - 18:00';
+      const workTimeRange =
+        barber.work_start_time && barber.work_end_time
+          ? `${barber.work_start_time} - ${barber.work_end_time}`
+          : '09:00 - 18:00';
       return ctx.reply(
         `Vaqt barberning ish vaqti oralig'ida bo'lishi kerak (${workTimeRange}).`,
       );
@@ -826,7 +928,13 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
     }
 
     // Call handleTimeSelection with the entered time
-    await this.handleTimeSelection(ctx, date, timeText, state.barberId, serviceIds);
+    await this.handleTimeSelection(
+      ctx,
+      date,
+      timeText,
+      state.barberId,
+      serviceIds,
+    );
     return true;
   }
 
@@ -843,9 +951,15 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
 
     // Check if user is admin or super admin
     const user = await this.userService.findByTgId(tgId);
-    if (user && (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN)) {
+    if (
+      user &&
+      (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN)
+    ) {
       const menu = getAdminMainMenu();
-      const roleName = user.role === UserRole.ADMIN ? 'Administrator (Admin)' : 'Super Administrator';
+      const roleName =
+        user.role === UserRole.ADMIN
+          ? 'Administrator (Admin)'
+          : 'Super Administrator';
       const welcomeMessage = `
 👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
 
@@ -979,9 +1093,10 @@ Quyidagi bo'limlardan birini tanlang:
     });
 
     const selectedCount = serviceIds.length;
-    const workTime = barber.work_start_time && barber.work_end_time
-      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
-      : '';
+    const workTime =
+      barber.work_start_time && barber.work_end_time
+        ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+        : '';
 
     const message = `
 <b>💈 Barber:</b> ${barber.name}${workTime}
@@ -1032,10 +1147,13 @@ Quyidagi bo'limlardan birini tanlang:
     // Create inline keyboard for barbers
     const keyboard = new InlineKeyboard();
     barbers.forEach((barber) => {
-      const workTime = barber.work_start_time && barber.work_end_time
-        ? ` (${barber.work_start_time} - ${barber.work_end_time})`
+      const workTime =
+        barber.work_start_time && barber.work_end_time
+          ? ` (${barber.work_start_time} - ${barber.work_end_time})`
+          : '';
+      const usernameDisplay = barber.tg_username
+        ? ` (@${barber.tg_username})`
         : '';
-      const usernameDisplay = barber.tg_username ? ` (@${barber.tg_username})` : '';
       keyboard
         .text(
           `👤 ${barber.name}${usernameDisplay}${workTime}`,
@@ -1070,7 +1188,11 @@ Iltimos, xizmat olish uchun barberni tanlang:
     }
   }
 
-  async handleBackToDate(ctx: Context, barberId: number, serviceIdsStr: string) {
+  async handleBackToDate(
+    ctx: Context,
+    barberId: number,
+    serviceIdsStr: string,
+  ) {
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
@@ -1112,9 +1234,10 @@ Iltimos, xizmat olish uchun barberni tanlang:
       .map((s) => `✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
       .join('\n');
 
-    const workTime = barber.work_start_time && barber.work_end_time
-      ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
-      : '';
+    const workTime =
+      barber.work_start_time && barber.work_end_time
+        ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
+        : '';
 
     // Premium card message
     const message = `
@@ -1153,7 +1276,7 @@ ${servicesList}
         month: 'short',
       });
       const dateDisplay = `📅 ${weekday} • ${day}-${month}`;
-      
+
       // Har ikkinchi tugmadan keyin yangi qator
       if (index % 2 === 0) {
         keyboard.text(
@@ -1162,14 +1285,11 @@ ${servicesList}
         );
       } else {
         keyboard
-          .text(
-            dateDisplay,
-            `date_${date}_${barberId}_${serviceIds.join(',')}`,
-          )
+          .text(dateDisplay, `date_${date}_${barberId}_${serviceIds.join(',')}`)
           .row();
       }
     });
-    
+
     // Agar tugmalar soni toq bo'lsa, oxirgi qatorni yopish
     if (dates.length % 2 !== 0) {
       keyboard.row();

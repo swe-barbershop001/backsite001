@@ -3,7 +3,10 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { ServiceCategory } from '../../service-category/entities/service-category.entity';
 
 @Entity('barber_services')
 export class BarberService {
@@ -19,7 +22,18 @@ export class BarberService {
   @Column()
   duration: number; // daqiqa
 
+  @Column({ nullable: true })
+  image_url: string; // xizmat rasmi
+
+  @Column()
+  category_id: number;
+
+  @ManyToOne(() => ServiceCategory, (category) => category.services, {
+    onDelete: 'RESTRICT',
+  })
+  @JoinColumn({ name: 'category_id' })
+  category: ServiceCategory;
+
   @CreateDateColumn()
   created_at: Date;
 }
-

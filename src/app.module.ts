@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { getDatabaseConfig } from './config/database.config';
 import { UserModule } from './modules/user/user.module';
 import { BarberServiceModule } from './modules/barber-service/barber-service.module';
+import { ServiceCategoryModule } from './modules/service-category/service-category.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { BotModule } from './modules/bot/bot.module';
 import { PostModule } from './modules/post/post.module';
@@ -37,6 +38,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     AdminModule,
     BarberModule,
     ClientModule,
+    ServiceCategoryModule,
     BarberServiceModule,
     BookingModule,
     BotModule,

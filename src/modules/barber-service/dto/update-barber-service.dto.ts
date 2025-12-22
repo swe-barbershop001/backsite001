@@ -1,4 +1,4 @@
-import { IsString, IsNumber, Min, IsOptional } from 'class-validator';
+import { IsString, IsNumber, Min, IsOptional, IsPositive } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateBarberServiceDto {
@@ -18,5 +18,21 @@ export class UpdateBarberServiceDto {
   @Min(1)
   @IsOptional()
   duration?: number;
+
+  @ApiProperty({ description: 'Kategoriya ID', example: 1, required: false })
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
+  category_id?: number;
+
+  @ApiProperty({ 
+    description: 'Xizmat rasmi', 
+    type: 'string',
+    format: 'binary',
+    required: false 
+  })
+  @IsString()
+  @IsOptional()
+  image_url?: string;
 }
 

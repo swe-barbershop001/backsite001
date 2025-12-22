@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsOptional, IsPositive } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateBarberServiceDto {
@@ -16,5 +16,21 @@ export class CreateBarberServiceDto {
   @IsNumber()
   @Min(1)
   duration: number;
+
+  @ApiProperty({ description: 'Kategoriya ID', example: 1 })
+  @IsNumber()
+  @IsPositive()
+  @IsNotEmpty()
+  category_id: number;
+
+  @ApiProperty({ 
+    description: 'Xizmat rasmi', 
+    type: 'string',
+    format: 'binary',
+    required: false 
+  })
+  @IsString()
+  @IsOptional()
+  image_url?: string;
 }
 

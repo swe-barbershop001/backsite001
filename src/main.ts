@@ -24,6 +24,12 @@ async function bootstrap() {
     console.log('[Main] Posts uploads folder yaratildi:', postsDir);
   }
 
+  const servicesDir = join(process.cwd(), 'uploads', 'services');
+  if (!fs.existsSync(servicesDir)) {
+    fs.mkdirSync(servicesDir, { recursive: true });
+    console.log('[Main] Services uploads folder yaratildi:', servicesDir);
+  }
+
   // Static files serving - uploads folder'ni public qilish
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads',
