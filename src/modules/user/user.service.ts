@@ -341,4 +341,15 @@ export class UserService {
       users.filter(user => user.tg_id !== null && user.tg_id !== undefined && user.tg_id !== '')
     );
   }
+
+  /**
+   * Barcha barberlarni qaytaradi (admin uchun)
+   */
+  async findAllBarbers(): Promise<User[]> {
+    return await this.userRepository.find({
+      where: { role: UserRole.BARBER },
+      select: ['id', 'name', 'phone_number', 'tg_id', 'tg_username', 'working', 'work_start_time', 'work_end_time', 'created_at'],
+      order: { created_at: 'DESC' },
+    });
+  }
 }

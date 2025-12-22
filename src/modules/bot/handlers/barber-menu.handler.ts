@@ -2,7 +2,7 @@ import { Context, InlineKeyboard } from 'grammy';
 import { UserService } from '../../user/user.service';
 import { BarberServiceService } from '../../barber-service/barber-service.service';
 import { BookingService } from '../../booking/booking.service';
-import { getBarberMainMenu } from '../keyboards/main.menu';
+import { getBarberReplyMenu } from '../keyboards/main.menu';
 
 export class BarberMenuHandler {
   constructor(
@@ -25,11 +25,9 @@ export class BarberMenuHandler {
     }
 
     await this.userService.updateWorkingStatus(barber.id, true);
-    const menu = getBarberMainMenu();
 
     return ctx.reply(
       '✅ Ish boshlandi! Endi sizga bookinglar qabul qilinadi.',
-      { reply_markup: menu },
     );
   }
 
@@ -47,11 +45,9 @@ export class BarberMenuHandler {
     }
 
     await this.userService.updateWorkingStatus(barber.id, false);
-    const menu = getBarberMainMenu();
 
     return ctx.reply(
       '⏹ Ish yakunlandi. Yana ishga qaytganda "Ishni boshlash" tugmasini bosing.',
-      { reply_markup: menu },
     );
   }
 

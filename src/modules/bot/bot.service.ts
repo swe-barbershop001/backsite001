@@ -289,6 +289,12 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
+    // Admin barberlar callback handler
+    this.bot.callbackQuery('admin_barbers', async (ctx) => {
+      await this.clientMenuHandler.handleAdminBarbers(ctx, 1);
+      await ctx.answerCallbackQuery();
+    });
+
     // Admin post yuborish callback handler
     this.bot.callbackQuery('admin_post', async (ctx) => {
       await this.postHandler.handlePostCreation(ctx);
@@ -765,6 +771,8 @@ export class BotService implements OnModuleInit {
       const userId = ctx.from?.id;
       if (!userId) return;
 
+      const text = ctx.message.text;
+
       // Check if user is in post creation flow
       const postState = this.postHandler.getPostState(userId);
       if (postState) {
@@ -804,7 +812,54 @@ export class BotService implements OnModuleInit {
         if (timeHandled) return;
       }
 
-      // Default response - faqat inline keyboard tugmalari ishlatiladi
+      // Reply keyboard handler (Admin va Barber)
+      const tgId = ctx.from?.id.toString();
+      if (tgId) {
+        const user = await this.userService.findByTgId(tgId);
+        
+        if (user) {
+          const cleanText = text.trim();
+          
+          // Admin reply keyboard tugmalari
+          if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+            if (cleanText.includes('Yakunlanmagan bookinglar')) {
+              await this.clientMenuHandler.handleAdminBookings(ctx);
+              return;
+            } else if (cleanText.includes('Barberlar')) {
+              await this.clientMenuHandler.handleAdminBarbers(ctx, 1);
+              return;
+            } else if (cleanText.includes('Post yuborish')) {
+              await this.postHandler.handlePostCreation(ctx);
+              return;
+            } else if (cleanText.includes('Profil')) {
+              await this.clientMenuHandler.handleAdminProfile(ctx);
+              return;
+            }
+          }
+          
+          // Barber reply keyboard tugmalari
+          if (user.role === UserRole.BARBER) {
+            if (cleanText.includes('Bronlarim')) {
+              await this.barberMenuHandler.handleMyBookings(ctx);
+              return;
+            } else if (cleanText.includes('Ishni boshlash')) {
+              await this.barberMenuHandler.handleStartShift(ctx);
+              return;
+            } else if (cleanText.includes('Ishni tugatish')) {
+              await this.barberMenuHandler.handleEndShift(ctx);
+              return;
+            } else if (cleanText.includes('Xizmatlarim')) {
+              await this.barberMenuHandler.handleMyServices(ctx);
+              return;
+            } else if (cleanText.includes('Profilim')) {
+              await this.barberMenuHandler.handleMyProfile(ctx);
+              return;
+            }
+          }
+        }
+      }
+
+      // Default response - faqat keyboard tugmalari ishlatiladi
       await ctx.reply(
         "Noto'g'ri buyruq. Iltimos, menyudan tugmalardan birini tanlang.",
       );

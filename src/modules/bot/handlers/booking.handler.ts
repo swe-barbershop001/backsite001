@@ -9,8 +9,8 @@ import { BookingStatus } from '../../../common/enums/booking-status.enum';
 import { ConfigService } from '@nestjs/config';
 import {
   getClientMainMenu,
-  getBarberMainMenu,
-  getAdminMainMenu,
+  getBarberReplyMenu,
+  getAdminReplyMenu,
 } from '../keyboards/main.menu';
 
 export class BookingHandler {
@@ -955,7 +955,7 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
       user &&
       (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN)
     ) {
-      const menu = getAdminMainMenu();
+      const menu = getAdminReplyMenu();
       const roleName =
         user.role === UserRole.ADMIN
           ? 'Administrator (Admin)'
@@ -975,54 +975,33 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
 ❌ <b>Bronni bekor qilish</b> - Mijozga rad etish xabari yuboriladi
 
 ━━━━━━━━━━━━━━━━━━
-
-Quyidagi bo'limlardan birini tanlang:
-
 `;
 
-      // Xabarni tahrirlash yoki yangi xabar yuborish
-      try {
-        return await ctx.editMessageText(welcomeMessage, {
-          reply_markup: menu,
-          parse_mode: 'HTML',
-        });
-      } catch (error) {
-        // Agar xabar tahrirlab bo'lmasa, yangi xabar yuborish
-        return ctx.reply(welcomeMessage, {
-          reply_markup: menu,
-          parse_mode: 'HTML',
-        });
-      }
+      return ctx.reply(welcomeMessage, {
+        reply_markup: menu,
+        parse_mode: 'HTML',
+      });
     }
 
     // Check if user is a barber
     const barber = await this.userService.findBarberByTgId(tgId);
     if (barber) {
-      const menu = getBarberMainMenu();
-      const welcomeMessage = `
-👋 <b>Xush kelibsiz, ${barber.name}!</b>
+      const menu = getBarberReplyMenu();
+      const welcomeMessage = `👋 <b>Xush kelibsiz, ${barber.name}!</b>
 
-💈 <i>Barber paneliga xush kelibsiz.</i>
-
-Quyidagi bo'limlardan birini tanlang:
+✅ Sizning rolingiz: <b>Sartarosh (Barber)</b>
 
 ━━━━━━━━━━━━━━━━━━
 
+💈 <i>Barber paneliga xush kelibsiz.</i>
+
+━━━━━━━━━━━━━━━━━━
 `;
 
-      // Xabarni tahrirlash yoki yangi xabar yuborish
-      try {
-        return await ctx.editMessageText(welcomeMessage, {
-          reply_markup: menu,
-          parse_mode: 'HTML',
-        });
-      } catch (error) {
-        // Agar xabar tahrirlab bo'lmasa, yangi xabar yuborish
-        return ctx.reply(welcomeMessage, {
-          reply_markup: menu,
-          parse_mode: 'HTML',
-        });
-      }
+      return ctx.reply(welcomeMessage, {
+        reply_markup: menu,
+        parse_mode: 'HTML',
+      });
     }
 
     // Check if user is a client

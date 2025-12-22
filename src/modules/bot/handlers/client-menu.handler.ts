@@ -283,27 +283,83 @@ ${servicesList}
       
       keyboard.text('⬅️ Ortga qaytish', 'menu_back');
 
-      // Birinchi booking uchun xabar va keyboard yuborish
-      if (index === 1) {
-        try {
-          await ctx.editMessageText(message, {
-            reply_markup: keyboard,
-            parse_mode: 'HTML',
-          });
-        } catch (error) {
-          await ctx.reply(message, {
-            reply_markup: keyboard,
-            parse_mode: 'HTML',
-          });
-        }
-      } else {
-        // Qolgan booking'lar uchun alohida xabar yuborish
-        await ctx.reply(message, {
-          reply_markup: keyboard,
-          parse_mode: 'HTML',
-        });
-      }
+      // Har bir booking uchun xabar va keyboard yuborish
+      await ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
     }
+  }
+
+  async handleAdminBarbers(ctx: Context, page: number = 1) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId) return;
+
+    const user = await this.userService.findByTgId(tgId);
+    if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+      return ctx.reply('Siz admin emassiz.');
+    }
+
+    // Get all barbers
+    const allBarbers = await this.userService.findAllBarbers();
+    
+    if (allBarbers.length === 0) {
+      return ctx.reply("Hozircha barberlar yo'q.");
+    }
+
+    // Pagination settings
+    const itemsPerPage = 5;
+    const totalPages = Math.ceil(allBarbers.length / itemsPerPage);
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const barbersOnPage = allBarbers.slice(startIndex, endIndex);
+
+    // Format barber list
+    const barbersList = barbersOnPage.map((barber, index) => {
+      const globalIndex = startIndex + index + 1;
+      const workingStatus = barber.working ? '🟢 Ishlayapti' : '🔴 Ishlamayapti';
+      const workTime = barber.work_start_time && barber.work_end_time
+        ? `\n   🕒 Ish vaqti: ${barber.work_start_time} - ${barber.work_end_time}`
+        : '';
+      const tgUsername = barber.tg_username ? `\n   💬 @${barber.tg_username}` : '';
+      const phone = barber.phone_number ? `\n   📞 ${barber.phone_number}` : '';
+      
+      return `<b>${globalIndex}. ${barber.name}</b>
+   ${workingStatus}${workTime}${tgUsername}${phone}`;
+    }).join('\n\n');
+
+    const message = `💈 <b>Barberlar ro'yxati</b>
+
+━━━━━━━━━━━━━━━━━━
+
+${barbersList}
+
+━━━━━━━━━━━━━━━━━━
+
+📊 <b>Jami:</b> ${allBarbers.length} ta barber
+📄 <b>Sahifa:</b> ${page}/${totalPages}`;
+
+    // Pagination keyboard
+    const keyboard = new InlineKeyboard();
+    
+    if (totalPages > 1) {
+      if (page > 1) {
+        keyboard.text('⬅️ Oldingi', `barbers_page_${page - 1}`);
+      }
+      
+      keyboard.text(`${page}/${totalPages}`, 'noop');
+      
+      if (page < totalPages) {
+        keyboard.text('Keyingi ➡️', `barbers_page_${page + 1}`);
+      }
+      
+      keyboard.row();
+    }
+
+    return ctx.reply(message, {
+      reply_markup: keyboard,
+      parse_mode: 'HTML',
+    });
   }
 }
 

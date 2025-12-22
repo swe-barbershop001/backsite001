@@ -3,13 +3,13 @@ import { UserService } from '../../user/user.service';
 import { UserRole } from '../../../common/enums/user.enum';
 import {
   getClientMainMenu,
-  getBarberMainMenu,
-  getAdminMainMenu,
+  getBarberReplyMenu,
+  getAdminReplyMenu,
 } from '../keyboards/main.menu';
 import { BotSession } from '../types/session.types';
 
 export class RegistrationHandler {
-  private registrationStates = new Map<number, 'name' | 'phone'>();
+  private registrationStates = new Map<number, 'name' | 'phone' | 'barber_phone'>();
 
   constructor(private userService: UserService) {}
 
@@ -41,6 +41,21 @@ export class RegistrationHandler {
         // tg_id ni yangilash
         user = await this.userService.update(user.id, updateData);
 
+        // Barber uchun telefon raqami tekshirish
+        if (user.role === UserRole.BARBER && !user.phone_number) {
+          if (!ctx.from) return;
+          this.registrationStates.set(ctx.from.id, 'barber_phone');
+          
+          const phoneKeyboard = new Keyboard()
+            .requestContact('📱 Telefon raqamini yuborish')
+            .resized();
+
+          return ctx.reply(
+            `Salom, ${user.name}!\n\nSizning telefon raqamingiz bazada yo'q. Iltimos, telefon raqamingizni yuboring:\n\nMasalan: +998901234567`,
+            { reply_markup: phoneKeyboard },
+          );
+        }
+
         // Rol bo'yicha xabar va menyu ko'rsatish
         const roleMessages = {
           [UserRole.CLIENT]: {
@@ -49,8 +64,17 @@ export class RegistrationHandler {
             parseMode: undefined,
           },
           [UserRole.BARBER]: {
-            message: `👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>\n\n✅ Sizning rolingiz: <b>Sartarosh (Barber)</b>\n\n💈 <i>Barber paneliga xush kelibsiz.</i>\n\nQuyidagi bo'limlardan birini tanlang:\n\n━━━━━━━━━━━━━━━━━━\n\n`,
-            menu: getBarberMainMenu(),
+            message: `👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
+
+✅ Sizning rolingiz: <b>Sartarosh (Barber)</b>
+
+━━━━━━━━━━━━━━━━━━
+
+💈 <i>Barber paneliga xush kelibsiz.</i>
+
+━━━━━━━━━━━━━━━━━━
+`,
+            menu: getBarberReplyMenu(),
             parseMode: 'HTML',
           },
           [UserRole.ADMIN]: {
@@ -70,10 +94,8 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
 
 ━━━━━━━━━━━━━━━━━━
 
-Quyidagi bo'limlardan birini tanlang:
-
 `,
-            menu: getAdminMainMenu(),
+            menu: getAdminReplyMenu(),
             parseMode: 'HTML',
           },
           [UserRole.SUPER_ADMIN]: {
@@ -93,10 +115,8 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
 
 ━━━━━━━━━━━━━━━━━━
 
-Quyidagi bo'limlardan birini tanlang:
-
 `,
-            menu: getAdminMainMenu(),
+            menu: getAdminReplyMenu(),
             parseMode: 'HTML',
           },
         };
@@ -134,18 +154,31 @@ Quyidagi bo'limlardan birini tanlang:
           { reply_markup: menu },
         );
       } else if (user.role === UserRole.BARBER) {
-        const menu = getBarberMainMenu();
-        const message = `
-👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
+        // Telefon raqami tekshirish
+        if (!user.phone_number) {
+          if (!ctx.from) return;
+          this.registrationStates.set(ctx.from.id, 'barber_phone');
+          
+          const phoneKeyboard = new Keyboard()
+            .requestContact('📱 Telefon raqamini yuborish')
+            .resized();
+
+          return ctx.reply(
+            `Salom, ${user.name}!\n\nSizning telefon raqamingiz bazada yo'q. Iltimos, telefon raqamingizni yuboring:\n\nMasalan: +998901234567`,
+            { reply_markup: phoneKeyboard },
+          );
+        }
+
+        const menu = getBarberReplyMenu();
+        const message = `👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
 
 ✅ Sizning rolingiz: <b>Sartarosh (Barber)</b>
 
-💈 <i>Barber paneliga xush kelibsiz.</i>
-
-Quyidagi bo'limlardan birini tanlang:
-
 ━━━━━━━━━━━━━━━━━━
 
+💈 <i>Barber paneliga xush kelibsiz.</i>
+
+━━━━━━━━━━━━━━━━━━
 `;
         return ctx.reply(message, {
           reply_markup: menu,
@@ -155,7 +188,7 @@ Quyidagi bo'limlardan birini tanlang:
         user.role === UserRole.ADMIN ||
         user.role === UserRole.SUPER_ADMIN
       ) {
-        const menu = getAdminMainMenu();
+        const menu = getAdminReplyMenu();
         const roleName =
           user.role === UserRole.ADMIN
             ? 'Administrator (Admin)'
@@ -176,9 +209,6 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
 ✅ <b>Bronni yakunlash</b> - Xizmat bajarilgandan keyin bronni yakunlash
 
 ━━━━━━━━━━━━━━━━━━
-
-Quyidagi bo'limlardan birini tanlang:
-
 `;
         return ctx.reply(message, {
           reply_markup: menu,
@@ -288,6 +318,60 @@ Quyidagi bo'limlardan birini tanlang:
       }
     }
 
+    if (state === 'barber_phone') {
+      // Validate phone number (basic validation)
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      const phoneNumber = text.replace(/\s/g, '');
+      if (!phoneRegex.test(phoneNumber)) {
+        return ctx.reply(
+          "Noto'g'ri telefon raqam formati. Iltimos, qayta kiriting:\n\nMasalan: +998901234567",
+        );
+      }
+
+      const tgId = ctx.from.id.toString();
+      const user = await this.userService.findByTgId(tgId);
+
+      if (!user) {
+        this.registrationStates.delete(userId);
+        return ctx.reply("Xatolik yuz berdi. Iltimos, /start buyrug'ini yuboring.");
+      }
+
+      try {
+        // Update barber's phone number
+        await this.userService.update(user.id, { phone_number: phoneNumber });
+
+        // Clear registration state
+        this.registrationStates.delete(userId);
+
+        const menu = getBarberReplyMenu();
+        const message = `✅ <b>Telefon raqamingiz qo'shildi!</b>
+
+📞 <b>Telefon:</b> ${phoneNumber}
+
+━━━━━━━━━━━━━━━━━━
+
+👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
+
+✅ Sizning rolingiz: <b>Sartarosh (Barber)</b>
+
+━━━━━━━━━━━━━━━━━━
+
+💈 <i>Barber paneliga xush kelibsiz.</i>
+
+━━━━━━━━━━━━━━━━━━
+`;
+        return ctx.reply(message, {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        });
+      } catch (error) {
+        this.registrationStates.delete(userId);
+        return ctx.reply(
+          "Xatolik yuz berdi. Iltimos, qayta urinib ko'ring yoki /start buyrug'ini yuboring.",
+        );
+      }
+    }
+
     return false;
   }
 
@@ -296,12 +380,58 @@ Quyidagi bo'limlardan birini tanlang:
     if (!userId) return false;
 
     const state = this.registrationStates.get(userId);
-    if (state !== 'phone') return false; // Only handle contact in phone state
+    if (state !== 'phone' && state !== 'barber_phone') return false; // Handle contact in phone states
 
     const contact = ctx.message?.contact;
     if (!contact || !contact.phone_number) return false;
 
-    // Store phone number and create user
+    // Handle barber phone update
+    if (state === 'barber_phone') {
+      const tgId = ctx.from.id.toString();
+      const user = await this.userService.findByTgId(tgId);
+
+      if (!user) {
+        this.registrationStates.delete(userId);
+        return ctx.reply("Xatolik yuz berdi. Iltimos, /start buyrug'ini yuboring.");
+      }
+
+      try {
+        // Update barber's phone number
+        await this.userService.update(user.id, { phone_number: contact.phone_number });
+
+        // Clear registration state
+        this.registrationStates.delete(userId);
+
+        const menu = getBarberReplyMenu();
+        const message = `✅ <b>Telefon raqamingiz qo'shildi!</b>
+
+📞 <b>Telefon:</b> ${contact.phone_number}
+
+━━━━━━━━━━━━━━━━━━
+
+👋 <b>Xush kelibsiz, ${user.name || 'Foydalanuvchi'}!</b>
+
+✅ Sizning rolingiz: <b>Sartarosh (Barber)</b>
+
+━━━━━━━━━━━━━━━━━━
+
+💈 <i>Barber paneliga xush kelibsiz.</i>
+
+━━━━━━━━━━━━━━━━━━
+`;
+        return ctx.reply(message, {
+          reply_markup: menu,
+          parse_mode: 'HTML',
+        });
+      } catch (error) {
+        this.registrationStates.delete(userId);
+        return ctx.reply(
+          "Xatolik yuz berdi. Iltimos, qayta urinib ko'ring yoki /start buyrug'ini yuboring.",
+        );
+      }
+    }
+
+    // Handle client registration (original logic)
     const session = (ctx as any).session as BotSession | undefined;
     const tgId = ctx.from.id.toString();
     const tgUsername = ctx.from.username || undefined;
