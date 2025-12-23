@@ -6,18 +6,26 @@ services:
     container_name: barbershop-bot
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      - '${PORT:-3000}:3000'
     env_file:
       - .env
     environment:
       - NODE_ENV=production
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
     networks:
       - barbershop-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3000/api', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -31,17 +39,21 @@ services:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_DATABASE:-barbershop_db}
-      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_INITDB_ARGS: '-E UTF8 --locale=C'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Database initialization scripts (optional)
       # - ./docker/postgres/init:/docker-entrypoint-initdb.d
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - '${DB_PORT:-5432}:5432'
     networks:
       - barbershop-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-barbershop_db}"]
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-barbershop_db}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,8 +62,9 @@ services:
 volumes:
   postgres_data:
     driver: local
+  uploads_data:
+    driver: local
 
 networks:
   barbershop-network:
     driver: bridge
-
