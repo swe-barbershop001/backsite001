@@ -158,12 +158,29 @@ export class BotService implements OnModuleInit {
     });
 
     // Handle inline callbacks
-    this.bot.callbackQuery(/^service_toggle_(\d+)$/, async (ctx) => {
+    // New format: service toggle with category
+    this.bot.callbackQuery(/^service_toggle_(\d+)_(\d+)$/, async (ctx) => {
       const serviceId = parseInt(ctx.match[1]);
-      await this.bookingHandler.handleServiceToggle(ctx, serviceId);
+      const categoryId = parseInt(ctx.match[2]);
+      await this.bookingHandler.handleServiceToggle(ctx, serviceId, categoryId);
       await ctx.answerCallbackQuery();
     });
 
+    // Old format: for backward compatibility
+    this.bot.callbackQuery(/^service_toggle_(\d+)$/, async (ctx) => {
+      const serviceId = parseInt(ctx.match[1]);
+      // Default categoryId as 1 for old callbacks
+      await this.bookingHandler.handleServiceToggle(ctx, serviceId, 1);
+      await ctx.answerCallbackQuery();
+    });
+
+    // New service continue
+    this.bot.callbackQuery(/^service_continue_v2$/, async (ctx) => {
+      await this.bookingHandler.handleServiceContinue(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Old service continue (for backward compatibility)
     this.bot.callbackQuery(/^service_continue$/, async (ctx) => {
       await this.bookingHandler.handleServiceContinue(ctx);
       await ctx.answerCallbackQuery();
@@ -183,10 +200,39 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
-    // Back to categories
+    // Category pagination
+    this.bot.callbackQuery(
+      /^category_page_(\d+)_(\d+)_(\d+)$/,
+      async (ctx) => {
+        const categoryId = parseInt(ctx.match[1]);
+        const barberId = parseInt(ctx.match[2]);
+        const page = parseInt(ctx.match[3]);
+        await this.bookingHandler.handleCategorySelect(
+          ctx,
+          categoryId,
+          barberId,
+          page,
+        );
+        await ctx.answerCallbackQuery();
+      },
+    );
+
+    // Add more categories
+    this.bot.callbackQuery(/^add_more_categories_(\d+)$/, async (ctx) => {
+      const barberId = parseInt(ctx.match[1]);
+      await this.bookingHandler.handleAddMoreCategories(ctx, barberId);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Back to categories (with preserving selected services)
     this.bot.callbackQuery(/^back_to_categories_(\d+)$/, async (ctx) => {
       const barberId = parseInt(ctx.match[1]);
-      await this.bookingHandler.handleBarberSelect(ctx, barberId);
+      await this.bookingHandler.handleBarberSelect(ctx, barberId, true);
+      await ctx.answerCallbackQuery();
+    });
+
+    // No-op callback for pagination display
+    this.bot.callbackQuery('noop', async (ctx) => {
       await ctx.answerCallbackQuery();
     });
 
@@ -853,6 +899,20 @@ export class BotService implements OnModuleInit {
               return;
             } else if (cleanText.includes('Profilim')) {
               await this.barberMenuHandler.handleMyProfile(ctx);
+              return;
+            }
+          }
+          
+          // Client reply keyboard tugmalari
+          if (user.role === UserRole.CLIENT) {
+            if (cleanText.includes('Xizmatlar')) {
+              await this.bookingHandler.handleBookService(ctx);
+              return;
+            } else if (cleanText.includes('Bronlarim')) {
+              await this.bookingHandler.handleMyBookings(ctx);
+              return;
+            } else if (cleanText.includes('Profil')) {
+              await this.clientMenuHandler.handleMyProfile(ctx);
               return;
             }
           }

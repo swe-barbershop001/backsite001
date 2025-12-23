@@ -1,8 +1,8 @@
 import { InlineKeyboard, Keyboard } from 'grammy';
 
 /**
- * Mijozlar uchun asosiy inline keyboard
- * Har bir tugma alohida row'da joylashgan
+ * Mijozlar uchun asosiy inline keyboard (eski)
+ * @deprecated Use getClientReplyMenu instead
  */
 export const getClientMainMenu = () => {
   return new InlineKeyboard()
@@ -11,6 +11,21 @@ export const getClientMainMenu = () => {
     .text('📅 Bronlarim', 'menu_bookings')
     .row()
     .text('👤 Profil', 'menu_profile');
+};
+
+/**
+ * Mijozlar uchun reply keyboard (yangi)
+ * Doimiy tugmalar - text message orqali ishlaydi
+ */
+export const getClientReplyMenu = () => {
+  return new Keyboard()
+    .text('💈 Xizmatlar')
+    .row()
+    .text('📅 Bronlarim')
+    .row()
+    .text('👤 Profil')
+    .resized()
+    .persistent();
 };
 
 /**

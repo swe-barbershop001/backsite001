@@ -3,7 +3,7 @@ import { UserService } from '../../user/user.service';
 import { BarberServiceService } from '../../barber-service/barber-service.service';
 import { BookingService } from '../../booking/booking.service';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
-import { getClientMainMenu, getAdminMainMenu } from '../keyboards/main.menu';
+import { getClientReplyMenu, getAdminMainMenu } from '../keyboards/main.menu';
 import { UserRole } from '../../../common/enums/user.enum';
 
 export class ClientMenuHandler {

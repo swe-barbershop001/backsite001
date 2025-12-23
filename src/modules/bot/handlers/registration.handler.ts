@@ -2,7 +2,7 @@ import { Context, Keyboard } from 'grammy';
 import { UserService } from '../../user/user.service';
 import { UserRole } from '../../../common/enums/user.enum';
 import {
-  getClientMainMenu,
+  getClientReplyMenu,
   getBarberReplyMenu,
   getAdminReplyMenu,
 } from '../keyboards/main.menu';
@@ -60,7 +60,7 @@ export class RegistrationHandler {
         const roleMessages = {
           [UserRole.CLIENT]: {
             message: `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
-            menu: getClientMainMenu(),
+            menu: getClientReplyMenu(),
             parseMode: undefined,
           },
           [UserRole.BARBER]: {
@@ -148,7 +148,7 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
       }
 
       if (user.role === UserRole.CLIENT) {
-        const menu = getClientMainMenu();
+        const menu = getClientReplyMenu();
         return ctx.reply(
           `Xush kelibsiz, ${user.name || 'Foydalanuvchi'}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
           { reply_markup: menu },
@@ -305,7 +305,7 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
           delete session.registrationPhone;
         }
 
-        const menu = getClientMainMenu();
+        const menu = getClientReplyMenu();
         return ctx.reply(
           `Tabriklaymiz! Ro'yxatdan muvaffaqiyatli o'tdingiz! 🎉\n\nIsm: ${user.name}\nTelefon: ${user.phone_number}\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
           { reply_markup: menu },
@@ -456,7 +456,7 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
         delete session.registrationPhone;
       }
 
-      const menu = getClientMainMenu();
+      const menu = getClientReplyMenu();
       return ctx.reply(
         `Tabriklaymiz! Ro'yxatdan muvaffaqiyatli o'tdingiz! 🎉\n\nIsm: ${user.name}\nTelefon: ${user.phone_number}\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`,
         { reply_markup: menu },

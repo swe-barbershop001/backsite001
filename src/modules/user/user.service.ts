@@ -202,6 +202,74 @@ export class UserService {
     return user;
   }
 
+  /**
+   * Foydalanuvchi rolini yangilash
+   * Faqat ADMIN va SUPER_ADMIN ruxsat etiladi
+   * SUPER_ADMIN barcha rollarni yangilashi mumkin
+   * ADMIN faqat BARBER va CLIENT rollarini yangilashi mumkin
+   */
+  async updateRole(
+    userId: number,
+    newRole: UserRole,
+    currentUser: { id: number; role: UserRole },
+  ): Promise<Omit<User, 'password'>> {
+    // ID validatsiyasi
+    if (!userId || isNaN(userId)) {
+      throw new BadRequestException('Noto\'g\'ri foydalanuvchi ID format');
+    }
+
+    // Foydalanuvchi mavjudligini tekshirish
+    const targetUser = await this.findOne(userId);
+    if (!targetUser) {
+      throw new NotFoundException(`ID ${userId} bilan foydalanuvchi topilmadi`);
+    }
+
+    // O'z rolini o'zgartirish mumkin emas (xavfsizlik uchun)
+    if (currentUser.id === userId) {
+      throw new ForbiddenException(
+        'O\'z rolingizni o\'zgartirib bo\'lmaydi. Boshqa admin yordamidan foydalaning',
+      );
+    }
+
+    // ADMIN faqat BARBER va CLIENT rollarini o'zgartirishi mumkin
+    if (currentUser.role === UserRole.ADMIN) {
+      // ADMIN boshqa ADMIN yoki SUPER_ADMIN rolini o'zgartira olmaydi
+      if (
+        targetUser.role === UserRole.ADMIN ||
+        targetUser.role === UserRole.SUPER_ADMIN
+      ) {
+        throw new ForbiddenException(
+          'ADMIN faqat BARBER va CLIENT rollarini o\'zgartirishi mumkin',
+        );
+      }
+
+      // ADMIN yangi rolni faqat BARBER yoki CLIENT qilishi mumkin
+      if (newRole !== UserRole.BARBER && newRole !== UserRole.CLIENT) {
+        throw new ForbiddenException(
+          'ADMIN foydalanuvchini faqat BARBER yoki CLIENT rollariga o\'zgartira oladi',
+        );
+      }
+    }
+
+    // SUPER_ADMIN barcha o'zgarishlarni amalga oshirishi mumkin
+    // Qo'shimcha tekshiruv kerak emas
+
+    // Rolni yangilash
+    await this.userRepository.update(userId, { role: newRole });
+
+    // Yangilangan foydalanuvchini qaytarish (passwordsiz)
+    const updatedUser = await this.findOne(userId);
+    if (!updatedUser) {
+      throw new NotFoundException(
+        `Yangilashdan keyin foydalanuvchi topilmadi`,
+      );
+    }
+
+    // Password ni olib tashlash
+    const { password, ...userWithoutPassword } = updatedUser;
+    return userWithoutPassword;
+  }
+
   async remove(id: number, currentUser?: { id: number; role: UserRole }): Promise<void> {
     // Agar role BARBER bo'lsa, faqat o'zining ma'lumotlarini o'chirishi mumkin
     if (currentUser && currentUser.role === UserRole.BARBER) {

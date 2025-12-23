@@ -8,7 +8,7 @@ import { BookingService } from '../../booking/booking.service';
 import { BookingStatus } from '../../../common/enums/booking-status.enum';
 import { ConfigService } from '@nestjs/config';
 import {
-  getClientMainMenu,
+  getClientReplyMenu,
   getBarberReplyMenu,
   getAdminReplyMenu,
 } from '../keyboards/main.menu';
@@ -26,8 +26,9 @@ export class BookingHandler {
         | 'time_input'
         | 'comment';
       barberId?: number;
-      categoryId?: number;
-      serviceIds?: number[];
+      selectedServiceIds?: number[]; // turli kategoriyalardan tanlangan barcha xizmatlar
+      currentCategoryId?: number; // hozirgi ochiq kategoriya
+      currentPage?: number; // pagination uchun
       date?: string;
       bookingIds?: number[]; // Yaratilgan booking ID'lari
     }
@@ -103,82 +104,54 @@ Iltimos, xizmat olish uchun barberni tanlang:
     }
   }
 
-  async handleServiceToggle(ctx: Context, serviceId: number) {
+  async handleServiceToggle(
+    ctx: Context,
+    serviceId: number,
+    categoryId: number,
+  ) {
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
     const state = this.bookingStates.get(ctx.from.id);
-    if (!state || state.step !== 'service' || !state.barberId) return;
+    if (
+      !state ||
+      state.step !== 'service' ||
+      !state.barberId ||
+      !state.currentCategoryId
+    )
+      return;
 
-    const serviceIds = state.serviceIds || [];
-    const serviceIndex = serviceIds.indexOf(serviceId);
+    const selectedServiceIds = state.selectedServiceIds || [];
+    const serviceIndex = selectedServiceIds.indexOf(serviceId);
 
     if (serviceIndex > -1) {
       // Remove service
-      serviceIds.splice(serviceIndex, 1);
+      selectedServiceIds.splice(serviceIndex, 1);
     } else {
       // Add service
-      serviceIds.push(serviceId);
+      selectedServiceIds.push(serviceId);
     }
 
+    // Update state
     this.bookingStates.set(ctx.from.id, {
       ...state,
-      serviceIds,
+      selectedServiceIds,
     });
 
-    const barber = await this.userService.findOne(state.barberId);
-    if (!barber) return;
-
-    // Get all services to update keyboard
-    const services = await this.barberServiceService.findAll();
-    const keyboard = new InlineKeyboard();
-
-    services.forEach((service) => {
-      const isSelected = serviceIds.includes(service.id);
-      keyboard
-        .text(
-          `${isSelected ? '🟩' : '⬜'} ${service.name} — ${service.price} so'm (${service.duration} min)`,
-          `service_toggle_${service.id}`,
-        )
-        .row();
-    });
-
-    keyboard
-      .text('⬅️ Ortga qaytish', 'back_to_barbers')
-      .text('✅ Davom etish', 'service_continue')
-      .row();
-
-    const selectedServices: BarberServiceEntity[] = services.filter((s) =>
-      serviceIds.includes(s.id),
+    // Re-render current category page
+    await this.handleCategorySelect(
+      ctx,
+      state.currentCategoryId,
+      state.barberId,
+      state.currentPage || 1,
     );
-    const selectedCount = selectedServices.length;
-
-    const workTime =
-      barber.work_start_time && barber.work_end_time
-        ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
-        : '';
-
-    const message = `
-<b>💈 Barber:</b> ${barber.name}${workTime}
-
-━━━━━━━━━━━━━━━━━━
-
-<b>✂️ Xizmatlarni tanlang</b>
-
-<i>(bir nechta tanlash mumkin)</i>
-
-📌 <b>Tanlangan xizmatlar:</b> ${selectedCount}
-
-━━━━━━━━━━━━━━━━━━
-`;
-
-    return ctx.editMessageText(message, {
-      reply_markup: keyboard,
-      parse_mode: 'HTML',
-    });
   }
 
-  async handleBarberSelect(ctx: Context, barberId: number) {
+  async handleBarberSelect(
+    ctx: Context,
+    barberId: number,
+    preserveServices: boolean = false,
+  ) {
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
 
@@ -197,6 +170,11 @@ Iltimos, xizmat olish uchun barberni tanlang:
       return ctx.reply("Hozircha mavjud kategoriyalar yo'q.");
     }
 
+    // Preserve selected services if requested
+    const state = this.bookingStates.get(ctx.from.id);
+    const selectedServiceIds =
+      preserveServices && state ? state.selectedServiceIds || [] : [];
+
     // Create inline keyboard for categories
     const keyboard = new InlineKeyboard();
     categories.forEach((category) => {
@@ -212,6 +190,7 @@ Iltimos, xizmat olish uchun barberni tanlang:
     this.bookingStates.set(ctx.from.id, {
       step: 'category',
       barberId,
+      selectedServiceIds,
     });
 
     const workTime =
@@ -219,8 +198,14 @@ Iltimos, xizmat olish uchun barberni tanlang:
         ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
         : '';
 
+    const selectedCount = selectedServiceIds.length;
+    const selectedInfo =
+      selectedCount > 0
+        ? `\n\n🎯 <b>Tanlangan xizmatlar:</b> ${selectedCount} ta`
+        : '';
+
     const message = `
-<b>💈 Barber:</b> ${barber.name}${workTime}
+<b>💈 Barber:</b> ${barber.name}${workTime}${selectedInfo}
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -244,10 +229,16 @@ Iltimos, xizmat olish uchun barberni tanlang:
     }
   }
 
+  async handleAddMoreCategories(ctx: Context, barberId: number) {
+    // Kategoriyalar ro'yxatiga qaytish, tanlangan xizmatlarni saqlab qolish
+    return this.handleBarberSelect(ctx, barberId, true);
+  }
+
   async handleCategorySelect(
     ctx: Context,
     categoryId: number,
     barberId: number,
+    page: number = 1,
   ) {
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
@@ -258,33 +249,74 @@ Iltimos, xizmat olish uchun barberni tanlang:
     }
 
     // Get services by category
-    const services = await this.barberServiceService.findByCategory(categoryId);
-    if (services.length === 0) {
+    const allServices =
+      await this.barberServiceService.findByCategory(categoryId);
+    if (allServices.length === 0) {
       return ctx.reply(
         "Bu kategoriyada xizmatlar yo'q. Iltimos, boshqa kategoriya tanlang.",
       );
     }
 
-    // Create inline keyboard for services (multiple selection)
+    // Get current state to preserve selected services
+    const state = this.bookingStates.get(ctx.from.id);
+    const selectedServiceIds = state?.selectedServiceIds || [];
+
+    // Pagination settings
+    const itemsPerPage = 5;
+    const totalPages = Math.ceil(allServices.length / itemsPerPage);
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const services = allServices.slice(startIndex, endIndex);
+
+    // Create inline keyboard for services
     const keyboard = new InlineKeyboard();
     services.forEach((service) => {
+      const isSelected = selectedServiceIds.includes(service.id);
       keyboard
         .text(
-          `⬜ ${service.name} — ${service.price} so'm (${service.duration} min)`,
-          `service_toggle_${service.id}`,
+          `${isSelected ? '✅' : '⬜'} ${service.name} — ${service.price} so'm (${service.duration} min)`,
+          `service_toggle_${service.id}_${categoryId}`,
         )
         .row();
     });
+
+    // Pagination buttons
+    if (totalPages > 1) {
+      const paginationRow: Array<{ text: string; callback_data: string }> = [];
+      if (page > 1) {
+        paginationRow.push({
+          text: '⬅️',
+          callback_data: `category_page_${categoryId}_${barberId}_${page - 1}`,
+        });
+      }
+      paginationRow.push({
+        text: `${page}/${totalPages}`,
+        callback_data: 'noop',
+      });
+      if (page < totalPages) {
+        paginationRow.push({
+          text: '➡️',
+          callback_data: `category_page_${categoryId}_${barberId}_${page + 1}`,
+        });
+      }
+      keyboard.row(...paginationRow);
+    }
+
+    // Action buttons
     keyboard
-      .text('⬅️ Ortga (Kategoriya)', `back_to_categories_${barberId}`)
-      .text('✅ Davom etish', 'service_continue')
+      .row()
+      .text('📂 Yana kategoriya qo\'shish', `add_more_categories_${barberId}`)
+      .row()
+      .text('✅ Davom etish', 'service_continue_v2')
       .row();
 
+    // Update state
     this.bookingStates.set(ctx.from.id, {
       step: 'service',
       barberId,
-      categoryId,
-      serviceIds: [],
+      selectedServiceIds,
+      currentCategoryId: categoryId,
+      currentPage: page,
     });
 
     const workTime =
@@ -292,10 +324,15 @@ Iltimos, xizmat olish uchun barberni tanlang:
         ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
         : '';
 
-    const category = services[0]?.category;
+    const category = allServices[0]?.category;
     const categoryName = category
       ? `${category.icon || '📁'} ${category.name}`
       : 'Xizmatlar';
+
+    const selectedCount = selectedServiceIds.length;
+    const selectedInCategory = selectedServiceIds.filter((id) =>
+      allServices.some((s) => s.id === id),
+    ).length;
 
     const message = `
 <b>💈 Barber:</b> ${barber.name}${workTime}
@@ -308,7 +345,8 @@ Iltimos, xizmat olish uchun barberni tanlang:
 
 <i>(bir nechta tanlash mumkin)</i>
 
-📌 <b>Tanlangan xizmatlar:</b> 0
+📌 <b>Bu kategoriyadan tanlangan:</b> ${selectedInCategory}
+🎯 <b>Jami tanlangan xizmatlar:</b> ${selectedCount}
 
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -335,9 +373,12 @@ Iltimos, xizmat olish uchun barberni tanlang:
     const state = this.bookingStates.get(ctx.from.id);
     if (!state || state.step !== 'service' || !state.barberId) return;
 
-    const serviceIds = state.serviceIds || [];
-    if (serviceIds.length === 0) {
-      return ctx.reply('Iltimos, kamida bitta xizmat tanlang.');
+    const selectedServiceIds = state.selectedServiceIds || [];
+    if (selectedServiceIds.length === 0) {
+      return ctx.answerCallbackQuery({
+        text: 'Iltimos, kamida bitta xizmat tanlang.',
+        show_alert: true,
+      });
     }
 
     const barber = await this.userService.findOne(state.barberId);
@@ -347,7 +388,7 @@ Iltimos, xizmat olish uchun barberni tanlang:
 
     // Get selected services
     const selectedServices: BarberServiceEntity[] = [];
-    for (const serviceId of serviceIds) {
+    for (const serviceId of selectedServiceIds) {
       const service = await this.barberServiceService.findOne(serviceId);
       if (service) {
         selectedServices.push(service);
@@ -368,10 +409,30 @@ Iltimos, xizmat olish uchun barberni tanlang:
       0,
     );
 
-    // Format services list
-    const servicesList = selectedServices
-      .map((s) => `✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
-      .join('\n');
+    // Group services by category for better display
+    const servicesByCategory = selectedServices.reduce(
+      (acc, service) => {
+        const categoryName = service.category?.name || 'Boshqa';
+        if (!acc[categoryName]) {
+          acc[categoryName] = [];
+        }
+        acc[categoryName].push(service);
+        return acc;
+      },
+      {} as Record<string, BarberServiceEntity[]>,
+    );
+
+    // Format services list grouped by category
+    const servicesList = Object.entries(servicesByCategory)
+      .map(([categoryName, services]) => {
+        const categoryIcon =
+          services[0]?.category?.icon || '📁';
+        const servicesText = services
+          .map((s) => `   ✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
+          .join('\n');
+        return `<b>${categoryIcon} ${categoryName}:</b>\n${servicesText}`;
+      })
+      .join('\n\n');
 
     const workTime =
       barber.work_start_time && barber.work_end_time
@@ -388,7 +449,7 @@ Iltimos, xizmat olish uchun barberni tanlang:
 ${servicesList}
 ━━━━━━━━━━━━━━━━━━
 
-💰 <b>Jami narx:</b> ${totalPrice} so'm
+💰 <b>Jami narx:</b> ${totalPrice.toLocaleString()} so'm
 ⏱ <b>Jami vaqt:</b> ${totalDuration} daqiqa
 
 📅 <b>Sana tanlang:</b>
@@ -420,13 +481,13 @@ ${servicesList}
       if (index % 2 === 0) {
         keyboard.text(
           dateDisplay,
-          `date_${date}_${state.barberId}_${serviceIds.join(',')}`,
+          `date_${date}_${state.barberId}_${selectedServiceIds.join(',')}`,
         );
       } else {
         keyboard
           .text(
             dateDisplay,
-            `date_${date}_${state.barberId}_${serviceIds.join(',')}`,
+            `date_${date}_${state.barberId}_${selectedServiceIds.join(',')}`,
           )
           .row();
       }
@@ -436,12 +497,14 @@ ${servicesList}
     if (dates.length % 2 !== 0) {
       keyboard.row();
     }
-    keyboard.text('⬅️ Ortga qaytish', 'back_to_services').row();
+    keyboard
+      .text('⬅️ Ortga (Kategoriyalar)', `add_more_categories_${state.barberId}`)
+      .row();
 
     this.bookingStates.set(ctx.from.id, {
       step: 'date',
       barberId: state.barberId,
-      serviceIds,
+      selectedServiceIds,
     });
 
     // Eski xabarni yangi xabar bilan almashtirish
@@ -586,7 +649,7 @@ Quyidagi vaqtlardan birini tanlang:
 
     this.bookingStates.set(ctx.from.id, {
       step: 'time',
-      serviceIds,
+      selectedServiceIds: serviceIds,
       barberId,
       date,
     });
@@ -683,7 +746,7 @@ Quyidagi vaqtlardan birini tanlang:
       // Client'ga xabar booking.service.ts ichidagi notifyClient() metodi orqali yuboriladi
       // Bu yerda qayta yuborish shart emas
 
-      const menu = getClientMainMenu();
+      const menu = getClientReplyMenu();
       return ctx.reply(
         '✅ Booking muvaffaqiyatli yaratildi!\n\nSizga xabar yuborildi. Asosiy menyuga qaytingiz.',
         {
@@ -809,7 +872,7 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
 
     this.bookingStates.set(ctx.from.id, {
       step: 'time_input',
-      serviceIds,
+      selectedServiceIds: serviceIds,
       barberId,
       date,
     });
@@ -840,7 +903,7 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
       // Clear booking state
       this.bookingStates.delete(userId);
 
-      const menu = getClientMainMenu();
+      const menu = getClientReplyMenu();
       return ctx.reply(
         "✅ Izoh muvaffaqiyatli qo'shildi!\n\nAsosiy menyuga qaytingiz.",
         { reply_markup: menu },
@@ -877,7 +940,7 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
       this.bookingStates.delete(userId);
     }
 
-    const menu = getClientMainMenu();
+    const menu = getClientReplyMenu();
     return ctx.reply('Asosiy menyuga qaytingiz.', { reply_markup: menu });
   }
 
@@ -922,8 +985,8 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
     }
 
     // Use the stored state data
-    const { serviceIds, date } = state;
-    if (!serviceIds || !date) {
+    const { selectedServiceIds, date } = state;
+    if (!selectedServiceIds || !date) {
       return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     }
 
@@ -933,7 +996,7 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
       date,
       timeText,
       state.barberId,
-      serviceIds,
+      selectedServiceIds,
     );
     return true;
   }
@@ -1010,20 +1073,14 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
       return ctx.reply("Iltimos, avval ro'yxatdan o'ting: /start");
     }
 
-    const menu = getClientMainMenu();
+    const menu = getClientReplyMenu();
     const welcomeMessage = `Xush kelibsiz, ${client.name}! 👋\n\nXizmatlardan foydalanish uchun quyidagi tugmalardan birini tanlang:`;
 
-    // Xabarni tahrirlash yoki yangi xabar yuborish
-    try {
-      return await ctx.editMessageText(welcomeMessage, {
-        reply_markup: menu,
-      });
-    } catch (error) {
-      // Agar xabar tahrirlab bo'lmasa, yangi xabar yuborish
-      return ctx.reply(welcomeMessage, { reply_markup: menu });
-    }
+    // Reply keyboard uchun editMessageText ishlatilmaydi, faqat yangi xabar
+    return ctx.reply(welcomeMessage, { reply_markup: menu });
   }
 
+  // Eski kod - endi ishlatilmaydi, lekin backward compatibility uchun saqlanmoqda
   async handleBackToServices(ctx: Context) {
     const tgId = ctx.from?.id.toString();
     if (!tgId || !ctx.from) return;
@@ -1033,77 +1090,8 @@ Mijozlar bron yaratgan paytda sizga avtomatik xabar yuboriladi. Sizning vazifang
       return this.handleBookService(ctx);
     }
 
-    // Barber va tanlangan xizmatlarni saqlab qolish
-    const barberId = state.barberId;
-    const serviceIds = state.serviceIds || [];
-
-    const barber = await this.userService.findOne(barberId);
-    if (!barber) {
-      return ctx.reply('Barber topilmadi.');
-    }
-
-    // Get all services
-    const services = await this.barberServiceService.findAll();
-    if (services.length === 0) {
-      return ctx.reply("Hozircha mavjud xizmatlar yo'q.");
-    }
-
-    // Create inline keyboard for services (multiple selection)
-    const keyboard = new InlineKeyboard();
-    services.forEach((service) => {
-      const isSelected = serviceIds.includes(service.id);
-      keyboard
-        .text(
-          `${isSelected ? '🟩' : '⬜'} ${service.name} — ${service.price} so'm (${service.duration} min)`,
-          `service_toggle_${service.id}`,
-        )
-        .row();
-    });
-    keyboard
-      .text('⬅️ Ortga qaytish', 'back_to_barbers')
-      .text('✅ Davom etish', 'service_continue')
-      .row();
-
-    // State'ni yangilash
-    this.bookingStates.set(ctx.from.id, {
-      step: 'service',
-      barberId,
-      serviceIds,
-    });
-
-    const selectedCount = serviceIds.length;
-    const workTime =
-      barber.work_start_time && barber.work_end_time
-        ? `\n🕒 <b>Ish vaqti:</b> ${barber.work_start_time} - ${barber.work_end_time}`
-        : '';
-
-    const message = `
-<b>💈 Barber:</b> ${barber.name}${workTime}
-
-━━━━━━━━━━━━━━━━━━
-
-<b>✂️ Xizmatlarni tanlang</b>
-
-<i>(bir nechta tanlash mumkin)</i>
-
-📌 <b>Tanlangan xizmatlar:</b> ${selectedCount}
-
-━━━━━━━━━━━━━━━━━━
-`;
-
-    // Xabarni tahrirlash yoki yangi xabar yuborish
-    try {
-      return await ctx.editMessageText(message, {
-        reply_markup: keyboard,
-        parse_mode: 'HTML',
-      });
-    } catch (error) {
-      // Agar xabar tahrirlab bo'lmasa, yangi xabar yuborish
-      return ctx.reply(message, {
-        reply_markup: keyboard,
-        parse_mode: 'HTML',
-      });
-    }
+    // Kategoriyalar ro'yxatiga qaytish
+    return this.handleBarberSelect(ctx, state.barberId, true);
   }
 
   async handleBackToBarbers(ctx: Context) {
@@ -1273,11 +1261,13 @@ ${servicesList}
     if (dates.length % 2 !== 0) {
       keyboard.row();
     }
-    keyboard.text('⬅️ Ortga qaytish', 'back_to_services').row();
+    keyboard
+      .text('⬅️ Ortga (Kategoriyalar)', `add_more_categories_${barberId}`)
+      .row();
 
     this.bookingStates.set(ctx.from.id, {
       step: 'date',
-      serviceIds,
+      selectedServiceIds: serviceIds,
       barberId,
     });
 
