@@ -168,6 +168,54 @@ npm run lint
 npm run test
 ```
 
+## 🔄 Database Migration'lar
+
+Loyihada TypeORM migration'lari yordamida database schema boshqariladi. Bu production muhitida xavfsizlik va nazoratni ta'minlaydi.
+
+### Migration buyruqlari
+
+```bash
+# Migration'larni ko'rish
+npm run migration:show
+
+# Yangi migration yaratish (avtomatik)
+npm run migration:generate -- src/database/migrations/MigrationName
+
+# Yangi migration yaratish (manual)
+npm run migration:create -- src/database/migrations/MigrationName
+
+# Migration'larni ishga tushirish
+npm run migration:run
+
+# Migration'ni bekor qilish (rollback)
+npm run migration:revert
+```
+
+### Migration'lar bilan ishlash
+
+**Development:**
+- `DB_SYNCHRONIZE=true` - Entity'lar avtomatik database'ga yoziladi
+- Migration'larni test qilish uchun `DB_SYNCHRONIZE=false` qiling
+
+**Production:**
+- `DB_SYNCHRONIZE=false` - Xavfsizlik uchun
+- Migration'lar avtomatik ishga tushadi (CI/CD orqali)
+- Manual deploy qilsangiz: `docker-compose exec app npm run migration:run`
+
+**Batafsil qo'llanma:** [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
+
+### Muhim eslatmalar
+
+⚠️ **Production'da:**
+- Har doim `DB_SYNCHRONIZE=false` qiling
+- Migration'lar orqali database schema'ni o'zgartiring
+- Deploy qilishdan oldin migration'larni test qiling
+
+✅ **Best practices:**
+- Har bir schema o'zgarishi uchun migration yarating
+- Migration'larni git'ga commit qiling
+- Migration'larni ishga tushirishdan oldin database backup oling
+
 ## 🚀 CI/CD
 
 Loyiha GitHub Actions orqali CI/CD pipeline bilan jihozlangan. Har bir push va pull request'da avtomatik test, lint va build amallari bajariladi. `main` branch'ga push qilinganda avtomatik ravishda EC2 server'ga Docker va Docker Compose orqali deploy qilinadi.
@@ -373,6 +421,8 @@ Production rejimida `synchronize: false` bo'lishi kerak. Migration'lardan foydal
 ## 📝 Qo'shimcha ma'lumot
 
 - **SETUP.md**: Tezkor o'rnatish qo'llanmasi
+- **MIGRATION_GUIDE.md**: Database migration'lar bo'yicha to'liq qo'llanma
+- **CI_CD_SETUP.md**: CI/CD sozlash bo'yicha qo'llanma
 - **Swagger API**: `http://localhost:3000/api` - To'liq API dokumentatsiyasi
 
 ## 🤝 Yordam

@@ -319,9 +319,9 @@ jobs:
             echo "DB_USERNAME=${{ vars.DB_USERNAME }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_DATABASE=${{ vars.DB_DATABASE }}" >> .env
-            echo "DB_SYNCHRONIZE=${{ vars.DB_SYNCHRONIZE || 'true' }}" >> .env
+            echo "DB_SYNCHRONIZE=false" >> .env
             echo "PORT=${{ vars.PORT }}" >> .env
-            echo "NODE_ENV=${{ vars.NODE_ENV || 'production' }}" >> .env
+            echo "NODE_ENV=production" >> .env
             
             # Fix line endings (Windows compatibility)
             sudo apt-get update && sudo apt-get install -y dos2unix || echo "dos2unix installation failed"
@@ -390,6 +390,25 @@ jobs:
               counter=$((counter + 2))
             done
             echo "Database is ready!"
+            
+            # Run database migrations
+            echo "=========================================="
+            echo "Running database migrations..."
+            echo "=========================================="
+            if $COMPOSE_CMD exec -T app npm run migration:run; then
+              echo "✅ Migrations completed successfully!"
+            else
+              echo "⚠️ Warning: Migration command failed, but continuing..."
+              echo "Note: This might be expected if migrations have already run."
+              echo "Check logs for details:"
+              $COMPOSE_CMD logs --tail=30 app
+            fi
+            
+            # Show migration status
+            echo "=========================================="
+            echo "Migration status:"
+            echo "=========================================="
+            $COMPOSE_CMD exec -T app npm run migration:show || echo "Could not show migration status"
             
             # Wait a bit for app to start
             echo "Waiting for application to start..."
