@@ -336,8 +336,7 @@ ${barbersList}
 
 ━━━━━━━━━━━━━━━━━━
 
-📊 <b>Jami:</b> ${allBarbers.length} ta barber
-📄 <b>Sahifa:</b> ${page}/${totalPages}`;
+📊 <b>Jami:</b> ${allBarbers.length} ta barber`;
 
     // Pagination keyboard
     const keyboard = new InlineKeyboard();
@@ -346,8 +345,6 @@ ${barbersList}
       if (page > 1) {
         keyboard.text('⬅️ Oldingi', `barbers_page_${page - 1}`);
       }
-      
-      keyboard.text(`${page}/${totalPages}`, 'noop');
       
       if (page < totalPages) {
         keyboard.text('Keyingi ➡️', `barbers_page_${page + 1}`);

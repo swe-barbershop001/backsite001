@@ -289,10 +289,6 @@ Iltimos, xizmat olish uchun barberni tanlang:
           callback_data: `category_page_${categoryId}_${barberId}_${page - 1}`,
         });
       }
-      paginationRow.push({
-        text: `${page}/${totalPages}`,
-        callback_data: 'noop',
-      });
       if (page < totalPages) {
         paginationRow.push({
           text: '➡️',
