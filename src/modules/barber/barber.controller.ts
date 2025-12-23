@@ -105,7 +105,8 @@ export class BarberController {
         profile_image: {
           type: 'string',
           format: 'binary',
-          description: 'Profile rasm fayli (image/jpeg, image/png, image/jpg, maksimal 50MB) - ixtiyoriy',
+          description:
+            'Profile rasm fayli (image/jpeg, image/png, image/jpg, maksimal 50MB) - ixtiyoriy',
         },
       },
     },
@@ -117,22 +118,72 @@ export class BarberController {
       type: 'object',
       properties: {
         id: { type: 'number', example: 1, description: 'Barber ID' },
-        name: { type: 'string', example: 'Ahmad Karimov', description: 'Barber ismi' },
-        phone_number: { type: 'string', nullable: true, example: '+998901234567', description: 'Telefon raqami' },
-        tg_id: { type: 'string', nullable: true, example: '123456789', description: 'Telegram ID' },
-        tg_username: { type: 'string', nullable: true, example: 'ahmad_barber', description: 'Telegram username' },
-        role: { type: 'string', enum: ['barber'], example: 'barber', description: 'Foydalanuvchi roli' },
-        working: { type: 'boolean', nullable: true, example: false, description: 'Ishlayaptimi?' },
-        work_start_time: { type: 'string', nullable: true, example: '09:00', description: 'Ish boshlash vaqti' },
-        work_end_time: { type: 'string', nullable: true, example: '18:00', description: 'Ish tugash vaqti' },
-        profile_image: { type: 'string', nullable: true, example: '/uploads/profiles/barber-123.jpg', description: 'Profile rasm yo\'li' },
-        created_at: { type: 'string', format: 'date-time', example: '2025-01-25T10:00:00.000Z', description: 'Yaratilgan sana' },
+        name: {
+          type: 'string',
+          example: 'Ahmad Karimov',
+          description: 'Barber ismi',
+        },
+        phone_number: {
+          type: 'string',
+          nullable: true,
+          example: '+998901234567',
+          description: 'Telefon raqami',
+        },
+        tg_id: {
+          type: 'string',
+          nullable: true,
+          example: '123456789',
+          description: 'Telegram ID',
+        },
+        tg_username: {
+          type: 'string',
+          nullable: true,
+          example: 'ahmad_barber',
+          description: 'Telegram username',
+        },
+        role: {
+          type: 'string',
+          enum: ['barber'],
+          example: 'barber',
+          description: 'Foydalanuvchi roli',
+        },
+        working: {
+          type: 'boolean',
+          nullable: true,
+          example: false,
+          description: 'Ishlayaptimi?',
+        },
+        work_start_time: {
+          type: 'string',
+          nullable: true,
+          example: '09:00',
+          description: 'Ish boshlash vaqti',
+        },
+        work_end_time: {
+          type: 'string',
+          nullable: true,
+          example: '18:00',
+          description: 'Ish tugash vaqti',
+        },
+        profile_image: {
+          type: 'string',
+          nullable: true,
+          example: '/uploads/profiles/barber-123.jpg',
+          description: "Profile rasm yo'li",
+        },
+        created_at: {
+          type: 'string',
+          format: 'date-time',
+          example: '2025-01-25T10:00:00.000Z',
+          description: 'Yaratilgan sana',
+        },
       },
     },
   })
   @ApiResponse({
     status: 400,
-    description: "Noto'g'ri so'rov - talab qilinadigan maydonlar to'ldirilmagan yoki noto'g'ri format",
+    description:
+      "Noto'g'ri so'rov - talab qilinadigan maydonlar to'ldirilmagan yoki noto'g'ri format",
     schema: {
       type: 'object',
       properties: {
@@ -144,7 +195,8 @@ export class BarberController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto\'g\'ri',
+    description:
+      "Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto'g'ri",
     schema: {
       type: 'object',
       properties: {
@@ -155,24 +207,32 @@ export class BarberController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Taqiqlangan - Faqat ADMIN yoki SUPER_ADMIN yangi barber yarata oladi',
+    description:
+      'Taqiqlangan - Faqat ADMIN yoki SUPER_ADMIN yangi barber yarata oladi',
     schema: {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'Faqat ADMIN yoki SUPER_ADMIN yangi sartarosh yarata oladi' },
+        message: {
+          type: 'string',
+          example: 'Faqat ADMIN yoki SUPER_ADMIN yangi sartarosh yarata oladi',
+        },
         error: { type: 'string', example: 'Forbidden' },
       },
     },
   })
   @ApiResponse({
     status: 409,
-    description: 'Telefon raqam, telegram ID yoki telegram username allaqachon mavjud',
+    description:
+      'Telefon raqam, telegram ID yoki telegram username allaqachon mavjud',
     schema: {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 409 },
-        message: { type: 'string', example: 'Bu telefon raqam allaqachon mavjud' },
+        message: {
+          type: 'string',
+          example: 'Bu telefon raqam allaqachon mavjud',
+        },
         error: { type: 'string', example: 'Conflict' },
       },
     },
@@ -185,7 +245,8 @@ export class BarberController {
       storage: diskStorage({
         destination: './uploads/profiles',
         filename: (req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
           const ext = extname(file.originalname);
           cb(null, `barber-${uniqueSuffix}${ext}`);
         },
@@ -194,7 +255,12 @@ export class BarberController {
         if (file.mimetype && file.mimetype.startsWith('image/')) {
           cb(null, true);
         } else {
-          cb(new BadRequestException('Faqat rasm fayllari qabul qilinadi (image/jpeg, image/png, image/jpg)'), false);
+          cb(
+            new BadRequestException(
+              'Faqat rasm fayllari qabul qilinadi (image/jpeg, image/png, image/jpg)',
+            ),
+            false,
+          );
         }
       },
       limits: {
@@ -246,44 +312,83 @@ export class BarberController {
   }
 
   @Get()
-  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Barcha barberlar ro\'yxatini olish',
-    description: 'Faqat ADMIN yoki SUPER_ADMIN barcha barberlar ro\'yxatini ko\'ra oladi.',
+    summary: "Barcha barberlar ro'yxatini olish",
+    description:
+      "Barcha barberlar ro'yxatini olish uchun autentifikatsiya talab qilinmaydi (Ochiq endpoint).",
   })
   @ApiResponse({
     status: 200,
-    description: 'Barcha barberlar ro\'yxati',
+    description: "Barcha barberlar ro'yxati",
     schema: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           id: { type: 'number', example: 1, description: 'Barber ID' },
-          name: { type: 'string', example: 'Ahmad Karimov', description: 'Barber ismi' },
-          phone_number: { type: 'string', nullable: true, example: '+998901234567', description: 'Telefon raqami' },
-          tg_id: { type: 'string', nullable: true, example: '123456789', description: 'Telegram ID' },
-          tg_username: { type: 'string', nullable: true, example: 'ahmad_barber', description: 'Telegram username' },
-          role: { type: 'string', enum: ['barber'], example: 'barber', description: 'Foydalanuvchi roli' },
-          working: { type: 'boolean', nullable: true, example: false, description: 'Ishlayaptimi?' },
-          work_start_time: { type: 'string', nullable: true, example: '09:00', description: 'Ish boshlash vaqti' },
-          work_end_time: { type: 'string', nullable: true, example: '18:00', description: 'Ish tugash vaqti' },
-          profile_image: { type: 'string', nullable: true, example: '/uploads/profiles/barber-123.jpg', description: 'Profile rasm yo\'li' },
-          created_at: { type: 'string', format: 'date-time', example: '2025-01-25T10:00:00.000Z', description: 'Yaratilgan sana' },
+          name: {
+            type: 'string',
+            example: 'Ahmad Karimov',
+            description: 'Barber ismi',
+          },
+          phone_number: {
+            type: 'string',
+            nullable: true,
+            example: '+998901234567',
+            description: 'Telefon raqami',
+          },
+          tg_id: {
+            type: 'string',
+            nullable: true,
+            example: '123456789',
+            description: 'Telegram ID',
+          },
+          tg_username: {
+            type: 'string',
+            nullable: true,
+            example: 'ahmad_barber',
+            description: 'Telegram username',
+          },
+          role: {
+            type: 'string',
+            enum: ['barber'],
+            example: 'barber',
+            description: 'Foydalanuvchi roli',
+          },
+          working: {
+            type: 'boolean',
+            nullable: true,
+            example: false,
+            description: 'Ishlayaptimi?',
+          },
+          work_start_time: {
+            type: 'string',
+            nullable: true,
+            example: '09:00',
+            description: 'Ish boshlash vaqti',
+          },
+          work_end_time: {
+            type: 'string',
+            nullable: true,
+            example: '18:00',
+            description: 'Ish tugash vaqti',
+          },
+          profile_image: {
+            type: 'string',
+            nullable: true,
+            example: '/uploads/profiles/barber-123.jpg',
+            description: "Profile rasm yo'li",
+          },
+          created_at: {
+            type: 'string',
+            format: 'date-time',
+            example: '2025-01-25T10:00:00.000Z',
+            description: 'Yaratilgan sana',
+          },
         },
       },
     },
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto\'g\'ri',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Taqiqlangan - Faqat ADMIN yoki SUPER_ADMIN barcha barberlar ro\'yxatini ko\'ra oladi',
-  })
-  @UseGuards(AuthGuard, RoleGuard)
-  @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   findAll() {
     return this.barberService.findAllBarbers();
   }
@@ -291,10 +396,16 @@ export class BarberController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Barber ID bo\'yicha olish',
-    description: 'Faqat ADMIN yoki SUPER_ADMIN barber ma\'lumotlarini ko\'ra oladi.',
+    summary: "Barber ID bo'yicha olish",
+    description:
+      "Faqat ADMIN yoki SUPER_ADMIN barber ma'lumotlarini ko'ra oladi.",
   })
-  @ApiParam({ name: 'id', type: 'number', description: 'Barber ID', example: 1 })
+  @ApiParam({
+    name: 'id',
+    type: 'number',
+    description: 'Barber ID',
+    example: 1,
+  })
   @ApiResponse({
     status: 200,
     description: 'Barber topildi',
@@ -302,16 +413,65 @@ export class BarberController {
       type: 'object',
       properties: {
         id: { type: 'number', example: 1, description: 'Barber ID' },
-        name: { type: 'string', example: 'Ahmad Karimov', description: 'Barber ismi' },
-        phone_number: { type: 'string', nullable: true, example: '+998901234567', description: 'Telefon raqami' },
-        tg_id: { type: 'string', nullable: true, example: '123456789', description: 'Telegram ID' },
-        tg_username: { type: 'string', nullable: true, example: 'ahmad_barber', description: 'Telegram username' },
-        role: { type: 'string', enum: ['barber'], example: 'barber', description: 'Foydalanuvchi roli' },
-        working: { type: 'boolean', nullable: true, example: false, description: 'Ishlayaptimi?' },
-        work_start_time: { type: 'string', nullable: true, example: '09:00', description: 'Ish boshlash vaqti' },
-        work_end_time: { type: 'string', nullable: true, example: '18:00', description: 'Ish tugash vaqti' },
-        profile_image: { type: 'string', nullable: true, example: '/uploads/profiles/barber-123.jpg', description: 'Profile rasm yo\'li' },
-        created_at: { type: 'string', format: 'date-time', example: '2025-01-25T10:00:00.000Z', description: 'Yaratilgan sana' },
+        name: {
+          type: 'string',
+          example: 'Ahmad Karimov',
+          description: 'Barber ismi',
+        },
+        phone_number: {
+          type: 'string',
+          nullable: true,
+          example: '+998901234567',
+          description: 'Telefon raqami',
+        },
+        tg_id: {
+          type: 'string',
+          nullable: true,
+          example: '123456789',
+          description: 'Telegram ID',
+        },
+        tg_username: {
+          type: 'string',
+          nullable: true,
+          example: 'ahmad_barber',
+          description: 'Telegram username',
+        },
+        role: {
+          type: 'string',
+          enum: ['barber'],
+          example: 'barber',
+          description: 'Foydalanuvchi roli',
+        },
+        working: {
+          type: 'boolean',
+          nullable: true,
+          example: false,
+          description: 'Ishlayaptimi?',
+        },
+        work_start_time: {
+          type: 'string',
+          nullable: true,
+          example: '09:00',
+          description: 'Ish boshlash vaqti',
+        },
+        work_end_time: {
+          type: 'string',
+          nullable: true,
+          example: '18:00',
+          description: 'Ish tugash vaqti',
+        },
+        profile_image: {
+          type: 'string',
+          nullable: true,
+          example: '/uploads/profiles/barber-123.jpg',
+          description: "Profile rasm yo'li",
+        },
+        created_at: {
+          type: 'string',
+          format: 'date-time',
+          example: '2025-01-25T10:00:00.000Z',
+          description: 'Yaratilgan sana',
+        },
       },
     },
   })
@@ -322,18 +482,20 @@ export class BarberController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { type: 'string', example: 'Noto\'g\'ri ID format' },
+        message: { type: 'string', example: "Noto'g'ri ID format" },
         error: { type: 'string', example: 'Bad Request' },
       },
     },
   })
   @ApiResponse({
     status: 401,
-    description: 'Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto\'g\'ri',
+    description:
+      "Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto'g'ri",
   })
   @ApiResponse({
     status: 403,
-    description: 'Taqiqlangan - Faqat ADMIN yoki SUPER_ADMIN barber ma\'lumotlarini ko\'ra oladi',
+    description:
+      "Taqiqlangan - Faqat ADMIN yoki SUPER_ADMIN barber ma'lumotlarini ko'ra oladi",
   })
   @ApiResponse({
     status: 404,
@@ -357,12 +519,17 @@ export class BarberController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Barber ma\'lumotlarini yangilash',
+    summary: "Barber ma'lumotlarini yangilash",
     description:
-      'ADMIN va SUPER_ADMIN barcha barberlarni yangilay oladi, BARBER faqat o\'zining ma\'lumotlarini yangilay oladi. Profile rasm fayli ixtiyoriy.',
+      "ADMIN va SUPER_ADMIN barcha barberlarni yangilay oladi, BARBER faqat o'zining ma'lumotlarini yangilay oladi. Profile rasm fayli ixtiyoriy.",
   })
   @ApiConsumes('multipart/form-data')
-  @ApiParam({ name: 'id', type: 'number', description: 'Barber ID', example: 1 })
+  @ApiParam({
+    name: 'id',
+    type: 'number',
+    description: 'Barber ID',
+    example: 1,
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -415,7 +582,8 @@ export class BarberController {
         profile_image: {
           type: 'string',
           format: 'binary',
-          description: 'Profile rasm fayli (image/jpeg, image/png, image/jpg, maksimal 50MB) - ixtiyoriy',
+          description:
+            'Profile rasm fayli (image/jpeg, image/png, image/jpg, maksimal 50MB) - ixtiyoriy',
         },
       },
     },
@@ -427,30 +595,82 @@ export class BarberController {
       type: 'object',
       properties: {
         id: { type: 'number', example: 1, description: 'Barber ID' },
-        name: { type: 'string', example: 'Ahmad Karimov', description: 'Barber ismi' },
-        phone_number: { type: 'string', nullable: true, example: '+998901234567', description: 'Telefon raqami' },
-        tg_id: { type: 'string', nullable: true, example: '123456789', description: 'Telegram ID' },
-        tg_username: { type: 'string', nullable: true, example: 'ahmad_barber', description: 'Telegram username' },
-        role: { type: 'string', enum: ['barber'], example: 'barber', description: 'Foydalanuvchi roli' },
-        working: { type: 'boolean', nullable: true, example: false, description: 'Ishlayaptimi?' },
-        work_start_time: { type: 'string', nullable: true, example: '09:00', description: 'Ish boshlash vaqti' },
-        work_end_time: { type: 'string', nullable: true, example: '18:00', description: 'Ish tugash vaqti' },
-        profile_image: { type: 'string', nullable: true, example: '/uploads/profiles/barber-123.jpg', description: 'Profile rasm yo\'li' },
-        created_at: { type: 'string', format: 'date-time', example: '2025-01-25T10:00:00.000Z', description: 'Yaratilgan sana' },
+        name: {
+          type: 'string',
+          example: 'Ahmad Karimov',
+          description: 'Barber ismi',
+        },
+        phone_number: {
+          type: 'string',
+          nullable: true,
+          example: '+998901234567',
+          description: 'Telefon raqami',
+        },
+        tg_id: {
+          type: 'string',
+          nullable: true,
+          example: '123456789',
+          description: 'Telegram ID',
+        },
+        tg_username: {
+          type: 'string',
+          nullable: true,
+          example: 'ahmad_barber',
+          description: 'Telegram username',
+        },
+        role: {
+          type: 'string',
+          enum: ['barber'],
+          example: 'barber',
+          description: 'Foydalanuvchi roli',
+        },
+        working: {
+          type: 'boolean',
+          nullable: true,
+          example: false,
+          description: 'Ishlayaptimi?',
+        },
+        work_start_time: {
+          type: 'string',
+          nullable: true,
+          example: '09:00',
+          description: 'Ish boshlash vaqti',
+        },
+        work_end_time: {
+          type: 'string',
+          nullable: true,
+          example: '18:00',
+          description: 'Ish tugash vaqti',
+        },
+        profile_image: {
+          type: 'string',
+          nullable: true,
+          example: '/uploads/profiles/barber-123.jpg',
+          description: "Profile rasm yo'li",
+        },
+        created_at: {
+          type: 'string',
+          format: 'date-time',
+          example: '2025-01-25T10:00:00.000Z',
+          description: 'Yaratilgan sana',
+        },
       },
     },
   })
   @ApiResponse({
     status: 400,
-    description: "Noto'g'ri so'rov - talab qilinadigan maydonlar to'ldirilmagan yoki noto'g'ri format",
+    description:
+      "Noto'g'ri so'rov - talab qilinadigan maydonlar to'ldirilmagan yoki noto'g'ri format",
   })
   @ApiResponse({
     status: 401,
-    description: 'Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto\'g\'ri',
+    description:
+      "Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto'g'ri",
   })
   @ApiResponse({
     status: 403,
-    description: 'Taqiqlangan - Barber faqat o\'zining ma\'lumotlarini yangilay oladi, ADMIN va SUPER_ADMIN barcha barberlarni yangilay oladi',
+    description:
+      "Taqiqlangan - Barber faqat o'zining ma'lumotlarini yangilay oladi, ADMIN va SUPER_ADMIN barcha barberlarni yangilay oladi",
   })
   @ApiResponse({
     status: 404,
@@ -458,7 +678,8 @@ export class BarberController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Telefon raqam, telegram ID yoki telegram username allaqachon mavjud',
+    description:
+      'Telefon raqam, telegram ID yoki telegram username allaqachon mavjud',
   })
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.BARBER)
@@ -467,7 +688,8 @@ export class BarberController {
       storage: diskStorage({
         destination: './uploads/profiles',
         filename: (req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
           const ext = extname(file.originalname);
           cb(null, `barber-${uniqueSuffix}${ext}`);
         },
@@ -476,7 +698,12 @@ export class BarberController {
         if (file.mimetype && file.mimetype.startsWith('image/')) {
           cb(null, true);
         } else {
-          cb(new BadRequestException('Faqat rasm fayllari qabul qilinadi (image/jpeg, image/png, image/jpg)'), false);
+          cb(
+            new BadRequestException(
+              'Faqat rasm fayllari qabul qilinadi (image/jpeg, image/png, image/jpg)',
+            ),
+            false,
+          );
         }
       },
       limits: {
@@ -541,17 +768,26 @@ export class BarberController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Barberni o\'chirish',
-    description: 'ADMIN va SUPER_ADMIN barcha barberlarni o\'chira oladi, BARBER faqat o\'zining ma\'lumotlarini o\'chira oladi.',
+    summary: "Barberni o'chirish",
+    description:
+      "ADMIN va SUPER_ADMIN barcha barberlarni o'chira oladi, BARBER faqat o'zining ma'lumotlarini o'chira oladi.",
   })
-  @ApiParam({ name: 'id', type: 'number', description: 'Barber ID', example: 1 })
+  @ApiParam({
+    name: 'id',
+    type: 'number',
+    description: 'Barber ID',
+    example: 1,
+  })
   @ApiResponse({
     status: 200,
-    description: 'Barber muvaffaqiyatli o\'chirildi',
+    description: "Barber muvaffaqiyatli o'chirildi",
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Barber muvaffaqiyatli o\'chirildi' },
+        message: {
+          type: 'string',
+          example: "Barber muvaffaqiyatli o'chirildi",
+        },
       },
     },
   })
@@ -561,11 +797,13 @@ export class BarberController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto\'g\'ri',
+    description:
+      "Autentifikatsiya talab qilinadi - Token yuborilmagan yoki noto'g'ri",
   })
   @ApiResponse({
     status: 403,
-    description: 'Taqiqlangan - Barber faqat o\'zining ma\'lumotlarini o\'chira oladi, ADMIN va SUPER_ADMIN barcha barberlarni o\'chira oladi',
+    description:
+      "Taqiqlangan - Barber faqat o'zining ma'lumotlarini o'chira oladi, ADMIN va SUPER_ADMIN barcha barberlarni o'chira oladi",
   })
   @ApiResponse({
     status: 404,
@@ -573,9 +811,11 @@ export class BarberController {
   })
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.BARBER)
-  async remove(@Param('id') id: string, @Request() req: ExpressRequest & { user: TokenPayload }) {
+  async remove(
+    @Param('id') id: string,
+    @Request() req: ExpressRequest & { user: TokenPayload },
+  ) {
     await this.barberService.removeBarber(+id, req.user);
-    return { message: 'Barber muvaffaqiyatli o\'chirildi' };
+    return { message: "Barber muvaffaqiyatli o'chirildi" };
   }
 }
-
