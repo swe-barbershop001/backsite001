@@ -43,6 +43,12 @@ export class Booking {
   @Column({ default: false })
   notification_sent: boolean; // 30 daqiqa oldin ogohlantirish yuborilganligi
 
+  @Column({ type: 'timestamp', nullable: true })
+  end_time: Date; // Booking tugash vaqti (date + time + service duration)
+
+  @Column({ default: false })
+  completion_notification_sent: boolean; // Booking tugash vaqtida xabar yuborilganligi
+
   @ManyToOne(() => User, (user) => user.clientBookings, {
     onDelete: 'SET NULL',
   })
@@ -62,4 +68,3 @@ export class Booking {
   @CreateDateColumn()
   created_at: Date;
 }
-

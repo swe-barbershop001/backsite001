@@ -6,6 +6,7 @@ import { BookingService } from './booking.service';
 import { BookingController } from './booking.controller';
 import { BookingGateway } from './gateways/booking.gateway';
 import { BookingNotificationService } from './booking-notification.service';
+import { BookingCompletionNotificationService } from './booking-completion-notification.service';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { BotModule } from '../bot/bot.module';
@@ -22,7 +23,12 @@ import { User } from '../user/entities/user.entity';
     BarberServiceModule,
   ],
   controllers: [BookingController],
-  providers: [BookingService, BookingGateway, BookingNotificationService],
+  providers: [
+    BookingService,
+    BookingGateway,
+    BookingNotificationService,
+    BookingCompletionNotificationService,
+  ],
   exports: [BookingService],
 })
 export class BookingModule {}

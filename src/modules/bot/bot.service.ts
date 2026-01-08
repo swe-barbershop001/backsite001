@@ -63,6 +63,7 @@ export class BotService implements OnModuleInit {
       this.userService,
       this.barberServiceService,
       this.bookingService,
+      this.serviceCategoryService,
     );
     this.postHandler = new PostHandler(
       this.userService,
@@ -323,6 +324,132 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
+    // Barber booking boshqarish callback handler'lari
+    this.bot.callbackQuery('barber_manage_bookings', async (ctx) => {
+      await this.barberMenuHandler.handleManageBookings(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_pending_bookings_page_(\d+)$/, async (ctx) => {
+      const page = parseInt(ctx.match[1]);
+      await this.barberMenuHandler.handlePendingBookings(ctx, page);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_approved_bookings_page_(\d+)$/, async (ctx) => {
+      const page = parseInt(ctx.match[1]);
+      await this.barberMenuHandler.handleApprovedBookings(ctx, page);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Barber mijoz booking yaratish callback handler'lari
+    this.bot.callbackQuery('barber_create_client_booking', async (ctx) => {
+      await this.barberMenuHandler.handleCreateClientBooking(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_search_client_phone', async (ctx) => {
+      await this.barberMenuHandler.handleClientSearchByPhone(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_search_client_username', async (ctx) => {
+      await this.barberMenuHandler.handleClientSearchByUsername(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_select_client_(\d+)$/, async (ctx) => {
+      const clientId = parseInt(ctx.match[1]);
+      await this.barberMenuHandler.handleSelectClient(ctx, clientId);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_category_select_(\d+)$/, async (ctx) => {
+      const categoryId = parseInt(ctx.match[1]);
+      await this.barberMenuHandler.handleCategorySelect(ctx, categoryId, 1);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_category_page_(\d+)_(\d+)$/, async (ctx) => {
+      const categoryId = parseInt(ctx.match[1]);
+      const page = parseInt(ctx.match[2]);
+      await this.barberMenuHandler.handleCategorySelect(ctx, categoryId, page);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_service_toggle_(\d+)_(\d+)$/, async (ctx) => {
+      const serviceId = parseInt(ctx.match[1]);
+      const categoryId = parseInt(ctx.match[2]);
+      await this.barberMenuHandler.handleServiceToggle(ctx, serviceId, categoryId);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_service_continue', async (ctx) => {
+      await this.barberMenuHandler.handleServiceContinue(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_add_more_categories', async (ctx) => {
+      await this.barberMenuHandler.handleServiceSelectionStart(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_date_select_([\d-]+)$/, async (ctx) => {
+      const date = ctx.match[1];
+      await this.barberMenuHandler.handleDateSelection(ctx, date);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_time_select_([\d-]+)_([\d:]+)$/, async (ctx) => {
+      const date = ctx.match[1];
+      const time = ctx.match[2];
+      await this.barberMenuHandler.handleTimeSelection(ctx, date, time);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^barber_time_input_([\d-]+)$/, async (ctx) => {
+      const date = ctx.match[1];
+      await ctx.reply(
+        "Iltimos, vaqtni HH:mm formatida kiriting (masalan: 14:30):",
+      );
+      // State'ni yangilash - time_input bosqichiga o'tkazish
+      const tgId = ctx.from?.id.toString();
+      if (tgId && ctx.from) {
+        const state = this.barberMenuHandler.barberBookingStates?.get(ctx.from.id);
+        if (state) {
+          this.barberMenuHandler.barberBookingStates.set(ctx.from.id, {
+            ...state,
+            step: 'time',
+          });
+        }
+      }
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_confirm_booking', async (ctx) => {
+      await this.barberMenuHandler.handleConfirmBooking(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_skip_phone', async (ctx) => {
+      await this.barberMenuHandler.handleSkipPhone(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_skip_username', async (ctx) => {
+      await this.barberMenuHandler.handleSkipUsername(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_cancel_booking_creation', async (ctx) => {
+      const tgId = ctx.from?.id.toString();
+      if (tgId && ctx.from) {
+        this.barberMenuHandler.barberBookingStates?.delete(ctx.from.id);
+      }
+      await this.barberMenuHandler.handleCreateClientBooking(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
     // Admin profil callback handler
     this.bot.callbackQuery('admin_profile', async (ctx) => {
       await this.clientMenuHandler.handleAdminProfile(ctx);
@@ -332,6 +459,24 @@ export class BotService implements OnModuleInit {
     // Admin bookinglar callback handler
     this.bot.callbackQuery('admin_bookings', async (ctx) => {
       await this.clientMenuHandler.handleAdminBookings(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Admin booking boshqarish callback handler'lari
+    this.bot.callbackQuery('admin_manage_bookings', async (ctx) => {
+      await this.clientMenuHandler.handleManageBookings(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_pending_bookings_page_(\d+)$/, async (ctx) => {
+      const page = parseInt(ctx.match[1]);
+      await this.clientMenuHandler.handleAdminPendingBookings(ctx, page);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_approved_bookings_page_(\d+)$/, async (ctx) => {
+      const page = parseInt(ctx.match[1]);
+      await this.clientMenuHandler.handleAdminApprovedBookings(ctx, page);
       await ctx.answerCallbackQuery();
     });
 
@@ -417,11 +562,15 @@ export class BotService implements OnModuleInit {
             await this.bookingService.findOne(bookingId);
           if (bookingWithRelations) {
             const updatedMessage = (ctx.callbackQuery.message?.text || '')
-              .replace('🟡 PENDING', '🟢 APPROVED')
-              .replace(
-                '📋 <b>Status:</b> 🟡 PENDING',
-                '📋 <b>Status:</b> 🟢 APPROVED',
-              );
+              // O'zbek tilidagi variantlar
+              .replace('🟡 Kutilmoqda', '🟢 Tasdiqlangan')
+              .replace('📋 <b>Status:</b> 🟡 Kutilmoqda', '📋 <b>Status:</b> 🟢 Tasdiqlangan')
+              // Ingliz tilidagi variantlar (backward compatibility)
+              .replace('🟡 PENDING', '🟢 Tasdiqlangan')
+              .replace('📋 <b>Status:</b> 🟡 PENDING', '📋 <b>Status:</b> 🟢 Tasdiqlangan')
+              // Emojisiz variantlar
+              .replace(/Kutilmoqda/g, 'Tasdiqlangan')
+              .replace(/PENDING/gi, 'Tasdiqlangan');
 
             // Yakunlash tugmasini qo'shish
             const keyboard = new InlineKeyboard();
@@ -436,13 +585,19 @@ export class BotService implements OnModuleInit {
 
             // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
           } else {
+            const fallbackMessage = (ctx.callbackQuery.message?.text || '')
+              // O'zbek tilidagi variantlar
+              .replace('🟡 Kutilmoqda', '🟢 Tasdiqlangan')
+              .replace('📋 <b>Status:</b> 🟡 Kutilmoqda', '📋 <b>Status:</b> 🟢 Tasdiqlangan')
+              // Ingliz tilidagi variantlar (backward compatibility)
+              .replace('🟡 PENDING', '🟢 Tasdiqlangan')
+              .replace('📋 <b>Status:</b> 🟡 PENDING', '📋 <b>Status:</b> 🟢 Tasdiqlangan')
+              // Emojisiz variantlar
+              .replace(/Kutilmoqda/g, 'Tasdiqlangan')
+              .replace(/PENDING/gi, 'Tasdiqlangan');
+            
             await ctx.editMessageText(
-              ctx.callbackQuery.message?.text?.replace(
-                '🟡 PENDING',
-                '🟢 APPROVED',
-              ) ||
-                ctx.callbackQuery.message?.text ||
-                '',
+              fallbackMessage || ctx.callbackQuery.message?.text || '',
               { parse_mode: 'HTML' },
             );
           }
@@ -489,13 +644,19 @@ export class BotService implements OnModuleInit {
         const booking = await this.bookingService.reject(bookingId);
         if (booking) {
           await ctx.answerCallbackQuery({ text: '❌ Booking bekor qilindi.' });
+          const updatedMessage = (ctx.callbackQuery.message?.text || '')
+            // O'zbek tilidagi variantlar
+            .replace('🟡 Kutilmoqda', '🔴 Rad etilgan')
+            .replace('📋 <b>Status:</b> 🟡 Kutilmoqda', '📋 <b>Status:</b> 🔴 Rad etilgan')
+            // Ingliz tilidagi variantlar (backward compatibility)
+            .replace('🟡 PENDING', '🔴 Rad etilgan')
+            .replace('📋 <b>Status:</b> 🟡 PENDING', '📋 <b>Status:</b> 🔴 Rad etilgan')
+            // Emojisiz variantlar
+            .replace(/Kutilmoqda/g, 'Rad etilgan')
+            .replace(/PENDING/gi, 'Rad etilgan');
+          
           await ctx.editMessageText(
-            ctx.callbackQuery.message?.text?.replace(
-              '🟡 PENDING',
-              '🔴 REJECTED',
-            ) ||
-              ctx.callbackQuery.message?.text ||
-              '',
+            updatedMessage || ctx.callbackQuery.message?.text || '',
             { parse_mode: 'HTML' },
           );
 
@@ -550,11 +711,15 @@ export class BotService implements OnModuleInit {
             await this.bookingService.findOne(bookingId);
           if (bookingWithRelations) {
             const updatedMessage = (ctx.callbackQuery.message?.text || '')
-              .replace('🟢 APPROVED', '✅ COMPLETED')
-              .replace(
-                '📋 <b>Status:</b> 🟢 APPROVED',
-                '📋 <b>Status:</b> ✅ COMPLETED',
-              );
+              // O'zbek tilidagi variantlar
+              .replace('🟢 Tasdiqlangan', '✅ Yakunlangan')
+              .replace('📋 <b>Status:</b> 🟢 Tasdiqlangan', '📋 <b>Status:</b> ✅ Yakunlangan')
+              // Ingliz tilidagi variantlar (backward compatibility)
+              .replace('🟢 APPROVED', '✅ Yakunlangan')
+              .replace('📋 <b>Status:</b> 🟢 APPROVED', '📋 <b>Status:</b> ✅ Yakunlangan')
+              // Emojisiz variantlar
+              .replace(/Tasdiqlangan/g, 'Yakunlangan')
+              .replace(/APPROVED/gi, 'Yakunlangan');
 
             await ctx.editMessageText(updatedMessage, {
               parse_mode: 'HTML',
@@ -562,13 +727,19 @@ export class BotService implements OnModuleInit {
 
             // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
           } else {
+            const fallbackMessage = (ctx.callbackQuery.message?.text || '')
+              // O'zbek tilidagi variantlar
+              .replace('🟢 Tasdiqlangan', '✅ Yakunlangan')
+              .replace('📋 <b>Status:</b> 🟢 Tasdiqlangan', '📋 <b>Status:</b> ✅ Yakunlangan')
+              // Ingliz tilidagi variantlar (backward compatibility)
+              .replace('🟢 APPROVED', '✅ Yakunlangan')
+              .replace('📋 <b>Status:</b> 🟢 APPROVED', '📋 <b>Status:</b> ✅ Yakunlangan')
+              // Emojisiz variantlar
+              .replace(/Tasdiqlangan/g, 'Yakunlangan')
+              .replace(/APPROVED/gi, 'Yakunlangan');
+            
             await ctx.editMessageText(
-              ctx.callbackQuery.message?.text?.replace(
-                '🟢 APPROVED',
-                '✅ COMPLETED',
-              ) ||
-                ctx.callbackQuery.message?.text ||
-                '',
+              fallbackMessage || ctx.callbackQuery.message?.text || '',
               { parse_mode: 'HTML' },
             );
           }
@@ -647,11 +818,15 @@ export class BotService implements OnModuleInit {
             await this.bookingService.findOne(bookingId);
           if (bookingWithRelations) {
             const updatedMessage = (ctx.callbackQuery.message?.text || '')
-              .replace('🟡 PENDING', '🟢 APPROVED')
-              .replace(
-                '📋 <b>Status:</b> 🟡 PENDING',
-                '📋 <b>Status:</b> 🟢 APPROVED',
-              );
+              // O'zbek tilidagi variantlar
+              .replace('🟡 Kutilmoqda', '🟢 Tasdiqlangan')
+              .replace('📋 <b>Status:</b> 🟡 Kutilmoqda', '📋 <b>Status:</b> 🟢 Tasdiqlangan')
+              // Ingliz tilidagi variantlar (backward compatibility)
+              .replace('🟡 PENDING', '🟢 Tasdiqlangan')
+              .replace('📋 <b>Status:</b> 🟡 PENDING', '📋 <b>Status:</b> 🟢 Tasdiqlangan')
+              // Emojisiz variantlar
+              .replace(/Kutilmoqda/g, 'Tasdiqlangan')
+              .replace(/PENDING/gi, 'Tasdiqlangan');
 
             // Yakunlash tugmasini qo'shish (faqat admin uchun, barber uchun emas)
             await ctx.editMessageText(updatedMessage, {
@@ -660,13 +835,19 @@ export class BotService implements OnModuleInit {
 
             // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
           } else {
+            const fallbackMessage = (ctx.callbackQuery.message?.text || '')
+              // O'zbek tilidagi variantlar
+              .replace('🟡 Kutilmoqda', '🟢 Tasdiqlangan')
+              .replace('📋 <b>Status:</b> 🟡 Kutilmoqda', '📋 <b>Status:</b> 🟢 Tasdiqlangan')
+              // Ingliz tilidagi variantlar (backward compatibility)
+              .replace('🟡 PENDING', '🟢 Tasdiqlangan')
+              .replace('📋 <b>Status:</b> 🟡 PENDING', '📋 <b>Status:</b> 🟢 Tasdiqlangan')
+              // Emojisiz variantlar
+              .replace(/Kutilmoqda/g, 'Tasdiqlangan')
+              .replace(/PENDING/gi, 'Tasdiqlangan');
+            
             await ctx.editMessageText(
-              ctx.callbackQuery.message?.text?.replace(
-                '🟡 PENDING',
-                '🟢 APPROVED',
-              ) ||
-                ctx.callbackQuery.message?.text ||
-                '',
+              fallbackMessage || ctx.callbackQuery.message?.text || '',
               { parse_mode: 'HTML' },
             );
           }
@@ -739,13 +920,19 @@ export class BotService implements OnModuleInit {
         const rejectedBooking = await this.bookingService.reject(bookingId);
         if (rejectedBooking) {
           await ctx.answerCallbackQuery({ text: '❌ Booking bekor qilindi.' });
+          const updatedMessage = (ctx.callbackQuery.message?.text || '')
+            // O'zbek tilidagi variantlar
+            .replace('🟡 Kutilmoqda', '🔴 Rad etilgan')
+            .replace('📋 <b>Status:</b> 🟡 Kutilmoqda', '📋 <b>Status:</b> 🔴 Rad etilgan')
+            // Ingliz tilidagi variantlar (backward compatibility)
+            .replace('🟡 PENDING', '🔴 Rad etilgan')
+            .replace('📋 <b>Status:</b> 🟡 PENDING', '📋 <b>Status:</b> 🔴 Rad etilgan')
+            // Emojisiz variantlar
+            .replace(/Kutilmoqda/g, 'Rad etilgan')
+            .replace(/PENDING/gi, 'Rad etilgan');
+          
           await ctx.editMessageText(
-            ctx.callbackQuery.message?.text?.replace(
-              '🟡 PENDING',
-              '🔴 REJECTED',
-            ) ||
-              ctx.callbackQuery.message?.text ||
-              '',
+            updatedMessage || ctx.callbackQuery.message?.text || '',
             { parse_mode: 'HTML' },
           );
 
@@ -758,6 +945,202 @@ export class BotService implements OnModuleInit {
         }
       } catch (error) {
         console.error('Failed to reject booking:', error);
+        await ctx.answerCallbackQuery({
+          text: 'Xatolik yuz berdi.',
+          show_alert: true,
+        });
+      }
+    });
+
+    // Barber booking yakunlash callback handler
+    this.bot.callbackQuery(/^barber_complete_booking_(\d+)$/, async (ctx) => {
+      const bookingId = parseInt(ctx.match[1]);
+      const tgId = ctx.from?.id.toString();
+      if (!tgId) {
+        await ctx.answerCallbackQuery({
+          text: 'Xatolik yuz berdi.',
+          show_alert: true,
+        });
+        return;
+      }
+
+      // Barber ekanligini tekshirish
+      const user = await this.userService.findByTgId(tgId);
+      if (!user || user.role !== UserRole.BARBER) {
+        await ctx.answerCallbackQuery({
+          text: "Sizda bu amalni bajarish huquqi yo'q.",
+          show_alert: true,
+        });
+        return;
+      }
+
+      try {
+        // Booking'ni topish va barber'ga tegishli ekanligini tekshirish
+        const booking = await this.bookingService.findOne(bookingId);
+        if (!booking) {
+          await ctx.answerCallbackQuery({
+            text: 'Booking topilmadi.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        // Barber faqat o'z booking'larini yakunlashi mumkin
+        if (booking.barber_id !== user.id) {
+          await ctx.answerCallbackQuery({
+            text: "Bu booking sizga tegishli emas.",
+            show_alert: true,
+          });
+          return;
+        }
+
+        // Booking status APPROVED bo'lishi kerak
+        if (booking.status !== BookingStatus.APPROVED) {
+          await ctx.answerCallbackQuery({
+            text: 'Bu booking tasdiqlanmagan.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        const completedBooking = await this.bookingService.complete(bookingId);
+        if (completedBooking) {
+          await ctx.answerCallbackQuery({ text: '✅ Booking yakunlandi!' });
+
+          // Xabarni yangilash
+          const bookingWithRelations =
+            await this.bookingService.findOne(bookingId);
+          if (bookingWithRelations) {
+            const updatedMessage = (ctx.callbackQuery.message?.text || '')
+              // O'zbek tilidagi variantlar
+              .replace('🟢 Tasdiqlangan', '✅ Yakunlangan')
+              .replace('📋 <b>Status:</b> 🟢 Tasdiqlangan', '📋 <b>Status:</b> ✅ Yakunlangan')
+              // Ingliz tilidagi variantlar (backward compatibility)
+              .replace('🟢 APPROVED', '✅ Yakunlangan')
+              .replace('📋 <b>Status:</b> 🟢 APPROVED', '📋 <b>Status:</b> ✅ Yakunlangan')
+              // Emojisiz variantlar
+              .replace(/Tasdiqlangan/g, 'Yakunlangan')
+              .replace(/APPROVED/gi, 'Yakunlangan');
+
+            await ctx.editMessageText(updatedMessage, {
+              parse_mode: 'HTML',
+            });
+
+            // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
+          } else {
+            const fallbackMessage = (ctx.callbackQuery.message?.text || '')
+              // O'zbek tilidagi variantlar
+              .replace('🟢 Tasdiqlangan', '✅ Yakunlangan')
+              .replace('📋 <b>Status:</b> 🟢 Tasdiqlangan', '📋 <b>Status:</b> ✅ Yakunlangan')
+              // Ingliz tilidagi variantlar (backward compatibility)
+              .replace('🟢 APPROVED', '✅ Yakunlangan')
+              .replace('📋 <b>Status:</b> 🟢 APPROVED', '📋 <b>Status:</b> ✅ Yakunlangan')
+              // Emojisiz variantlar
+              .replace(/Tasdiqlangan/g, 'Yakunlangan')
+              .replace(/APPROVED/gi, 'Yakunlangan');
+            
+            await ctx.editMessageText(
+              fallbackMessage || ctx.callbackQuery.message?.text || '',
+              { parse_mode: 'HTML' },
+            );
+          }
+        } else {
+          await ctx.answerCallbackQuery({
+            text: 'Booking topilmadi.',
+            show_alert: true,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to complete booking:', error);
+        await ctx.answerCallbackQuery({
+          text: 'Xatolik yuz berdi.',
+          show_alert: true,
+        });
+      }
+    });
+
+    // Barber booking bekor qilish (APPROVED uchun) callback handler
+    this.bot.callbackQuery(/^barber_cancel_booking_(\d+)$/, async (ctx) => {
+      const bookingId = parseInt(ctx.match[1]);
+      const tgId = ctx.from?.id.toString();
+      if (!tgId) {
+        await ctx.answerCallbackQuery({
+          text: 'Xatolik yuz berdi.',
+          show_alert: true,
+        });
+        return;
+      }
+
+      // Barber ekanligini tekshirish
+      const user = await this.userService.findByTgId(tgId);
+      if (!user || user.role !== UserRole.BARBER) {
+        await ctx.answerCallbackQuery({
+          text: "Sizda bu amalni bajarish huquqi yo'q.",
+          show_alert: true,
+        });
+        return;
+      }
+
+      try {
+        // Booking'ni topish va barber'ga tegishli ekanligini tekshirish
+        const booking = await this.bookingService.findOne(bookingId);
+        if (!booking) {
+          await ctx.answerCallbackQuery({
+            text: 'Booking topilmadi.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        // Barber faqat o'z booking'larini bekor qilishi mumkin
+        if (booking.barber_id !== user.id) {
+          await ctx.answerCallbackQuery({
+            text: "Bu booking sizga tegishli emas.",
+            show_alert: true,
+          });
+          return;
+        }
+
+        // Booking status APPROVED bo'lishi kerak
+        if (booking.status !== BookingStatus.APPROVED) {
+          await ctx.answerCallbackQuery({
+            text: 'Bu booking tasdiqlanmagan.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        // CANCELLED statusga o'zgartirish
+        const cancelledBooking = await this.bookingService.updateStatus(bookingId, {
+          status: BookingStatus.CANCELLED,
+        });
+        if (cancelledBooking) {
+          await ctx.answerCallbackQuery({ text: '❌ Booking bekor qilindi.' });
+          const updatedMessage = (ctx.callbackQuery.message?.text || '')
+            // O'zbek tilidagi variantlar
+            .replace('🟢 Tasdiqlangan', '⚫ Bekor qilingan')
+            .replace('📋 <b>Status:</b> 🟢 Tasdiqlangan', '📋 <b>Status:</b> ⚫ Bekor qilingan')
+            // Ingliz tilidagi variantlar (backward compatibility)
+            .replace('🟢 APPROVED', '⚫ Bekor qilingan')
+            .replace('📋 <b>Status:</b> 🟢 APPROVED', '📋 <b>Status:</b> ⚫ Bekor qilingan')
+            // Emojisiz variantlar
+            .replace(/Tasdiqlangan/g, 'Bekor qilingan')
+            .replace(/APPROVED/gi, 'Bekor qilingan');
+          
+          await ctx.editMessageText(
+            updatedMessage || ctx.callbackQuery.message?.text || '',
+            { parse_mode: 'HTML' },
+          );
+
+          // Client va barber'ga xabar booking.service.ts ichidagi updateStatus() metodi orqali yuboriladi
+        } else {
+          await ctx.answerCallbackQuery({
+            text: 'Booking topilmadi.',
+            show_alert: true,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to cancel booking:', error);
         await ctx.answerCallbackQuery({
           text: 'Xatolik yuz berdi.',
           show_alert: true,
@@ -871,6 +1254,9 @@ export class BotService implements OnModuleInit {
             if (cleanText.includes('Yakunlanmagan bookinglar')) {
               await this.clientMenuHandler.handleAdminBookings(ctx);
               return;
+            } else if (cleanText.includes('Bookinglarni boshqarish')) {
+              await this.clientMenuHandler.handleManageBookings(ctx);
+              return;
             } else if (cleanText.includes('Barberlar')) {
               await this.clientMenuHandler.handleAdminBarbers(ctx, 1);
               return;
@@ -888,6 +1274,12 @@ export class BotService implements OnModuleInit {
             if (cleanText.includes('Bronlarim')) {
               await this.barberMenuHandler.handleMyBookings(ctx);
               return;
+            } else if (cleanText.includes('Bronlarni boshqarish')) {
+              await this.barberMenuHandler.handleManageBookings(ctx);
+              return;
+            } else if (cleanText.includes('Mijoz uchun bron yaratish')) {
+              await this.barberMenuHandler.handleCreateClientBooking(ctx);
+              return;
             } else if (cleanText.includes('Ishni boshlash')) {
               await this.barberMenuHandler.handleStartShift(ctx);
               return;
@@ -900,6 +1292,30 @@ export class BotService implements OnModuleInit {
             } else if (cleanText.includes('Profilim')) {
               await this.barberMenuHandler.handleMyProfile(ctx);
               return;
+            }
+
+            // Barber booking yaratish jarayonida text input'ni qayta ishlash
+            const barberState = this.barberMenuHandler.barberBookingStates?.get(ctx.from.id);
+            if (barberState) {
+              if (barberState.step === 'client_search_phone' || barberState.step === 'client_search_username') {
+                await this.barberMenuHandler.handleClientSearchInput(ctx, text);
+                return;
+              } else if (
+                barberState.step === 'client_info_name' ||
+                barberState.step === 'client_info_phone' ||
+                barberState.step === 'client_info_username' ||
+                (barberState.step === 'client_info' && !barberState.clientId)
+              ) {
+                await this.barberMenuHandler.handleClientInfoInput(ctx, text);
+                return;
+              } else if (barberState.step === 'time') {
+                // Vaqt input
+                const date = barberState.date;
+                if (date) {
+                  await this.barberMenuHandler.handleTimeInput(ctx, date, text);
+                  return;
+                }
+              }
             }
           }
           

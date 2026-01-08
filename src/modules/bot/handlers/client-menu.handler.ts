@@ -222,12 +222,9 @@ ${services.map((s, i) => `
       index++;
       
       // Status display
-      let statusDisplay = '';
-      if (firstBooking.status === BookingStatus.APPROVED) {
-        statusDisplay = '🟢 APPROVED';
-      } else {
-        statusDisplay = '🟡 PENDING';
-      }
+      const statusDisplay = this.bookingService.getStatusDisplayInUzbek(
+        firstBooking.status,
+      );
 
       // Xizmatlar ro'yxati
       const servicesList = groupBookings
@@ -357,6 +354,356 @@ ${barbersList}
       reply_markup: keyboard,
       parse_mode: 'HTML',
     });
+  }
+
+  async handleManageBookings(ctx: Context) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId) return;
+
+    const user = await this.userService.findByTgId(tgId);
+    if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+      return ctx.reply('Siz admin emassiz.');
+    }
+
+    if (!this.bookingService) {
+      return ctx.reply('Booking servisi mavjud emas.');
+    }
+
+    // Barcha PENDING va APPROVED bookinglarni sanash
+    const pendingBookings = await this.bookingService.findPendingBookings();
+    const approvedBookings = await this.bookingService.findApprovedBookings();
+
+    const pendingCount = pendingBookings.length;
+    const approvedCount = approvedBookings.length;
+
+    const message = `<b>📋 Bookinglarni boshqarish</b>
+
+━━━━━━━━━━━━━━━━━━
+
+📊 <b>Statistika:</b>
+🟡 Kutilayotgan bookinglar: <b>${pendingCount} ta</b>
+🟢 Tasdiqlangan bookinglar: <b>${approvedCount} ta</b>
+
+━━━━━━━━━━━━━━━━━━
+
+Quyidagi tugmalardan birini tanlang:`;
+
+    const keyboard = new InlineKeyboard();
+    
+    if (pendingCount > 0) {
+      keyboard.text(`🟡 Kutilayotgan bookinglar (${pendingCount} ta)`, `admin_pending_bookings_page_1`).row();
+    }
+    
+    if (approvedCount > 0) {
+      keyboard.text(`🟢 Tasdiqlangan bookinglar (${approvedCount} ta)`, `admin_approved_bookings_page_1`).row();
+    }
+    
+    keyboard.text('⬅️ Ortga qaytish', 'menu_back');
+
+    try {
+      return await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      return ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
+  }
+
+  async handleAdminPendingBookings(ctx: Context, page: number = 1) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId) return;
+
+    const user = await this.userService.findByTgId(tgId);
+    if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+      return ctx.reply('Siz admin emassiz.');
+    }
+
+    if (!this.bookingService) {
+      return ctx.reply('Booking servisi mavjud emas.');
+    }
+
+    const allBookings = await this.bookingService.findPendingBookings();
+
+    if (allBookings.length === 0) {
+      const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'admin_manage_bookings');
+      const message = "🟡 Kutilayotgan bookinglar yo'q.";
+      
+      try {
+        return await ctx.editMessageText(message, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML',
+        });
+      } catch (error) {
+        return ctx.reply(message, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML',
+        });
+      }
+    }
+
+    // Group bookings by client (same client_id, barber_id, date, time)
+    const groupedBookings = new Map<string, typeof allBookings>();
+    allBookings.forEach((booking) => {
+      const key = `${booking.client_id}_${booking.barber_id}_${booking.date}_${booking.time}`;
+      if (!groupedBookings.has(key)) {
+        groupedBookings.set(key, []);
+      }
+      groupedBookings.get(key)!.push(booking);
+    });
+
+    const groupedArray = Array.from(groupedBookings.values());
+    const totalPages = groupedArray.length;
+    const currentPage = Math.max(1, Math.min(page, totalPages));
+    const currentBookingGroup = groupedArray[currentPage - 1];
+
+    if (!currentBookingGroup || currentBookingGroup.length === 0) {
+      const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'admin_manage_bookings');
+      return ctx.reply('Booking topilmadi.', { reply_markup: keyboard });
+    }
+
+    const firstBooking = currentBookingGroup[0];
+    const client = firstBooking.client;
+    const barber = firstBooking.barber;
+    const services = currentBookingGroup.map((b) => b.service).filter((s) => s !== null);
+
+    const totalPrice = services.reduce((sum, s) => sum + Number(s?.price || 0), 0);
+    const totalDuration = services.reduce((sum, s) => sum + Number(s?.duration || 0), 0);
+
+    // Format date
+    const dateObj = new Date(firstBooking.date + 'T00:00:00');
+    const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    // Format time range
+    const startTime = firstBooking.time;
+    let endTimeStr = '';
+    if (firstBooking.end_time) {
+      const endTime = new Date(firstBooking.end_time);
+      endTimeStr = endTime.toLocaleTimeString('uz-UZ', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } else if (services[0]?.duration) {
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startDate = new Date(`${firstBooking.date}T${startTime}:00`);
+      const endDate = new Date(
+        startDate.getTime() + totalDuration * 60 * 1000,
+      );
+      endTimeStr = endDate.toLocaleTimeString('uz-UZ', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+
+    const statusText = this.bookingService.getStatusDisplayInUzbek(firstBooking.status);
+
+    const message = `<b>🟡 Kutilayotgan booking #${currentPage}</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client?.name || "Noma'lum"}
+📞 <b>Telefon:</b> ${client?.phone_number || "Yo'q"}
+${client?.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+👨‍🔧 <b>Barber:</b> ${barber?.name || "Noma'lum"}
+
+💈 <b>Xizmatlar:</b>
+${services.map((s) => `• ${s?.name || "Noma'lum"} – ${Number(s?.price || 0).toLocaleString()} so'm (${s?.duration || 0} daqiqa)`).join('\n')}
+
+💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${startTime}${endTimeStr ? ` — ${endTimeStr}` : ''}
+📋 <b>Status:</b> ${statusText}
+
+━━━━━━━━━━━━━━━━━━
+
+📄 <b>Sahifa:</b> ${currentPage}/${totalPages}`;
+
+    const keyboard = new InlineKeyboard();
+    
+    // Status o'zgartirish tugmalari
+    keyboard
+      .text('✅ Tasdiqlash', `approve_booking_${firstBooking.id}`)
+      .text('❌ Bekor qilish', `reject_booking_${firstBooking.id}`)
+      .row();
+
+    // Pagination tugmalari
+    if (totalPages > 1) {
+      if (currentPage > 1) {
+        keyboard.text('⬅️ Oldingi', `admin_pending_bookings_page_${currentPage - 1}`);
+      }
+      if (currentPage < totalPages) {
+        keyboard.text('Keyingi ➡️', `admin_pending_bookings_page_${currentPage + 1}`);
+      }
+      keyboard.row();
+    }
+
+    keyboard.text('⬅️ Ortga qaytish', 'admin_manage_bookings');
+
+    try {
+      return await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      return ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
+  }
+
+  async handleAdminApprovedBookings(ctx: Context, page: number = 1) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId) return;
+
+    const user = await this.userService.findByTgId(tgId);
+    if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+      return ctx.reply('Siz admin emassiz.');
+    }
+
+    if (!this.bookingService) {
+      return ctx.reply('Booking servisi mavjud emas.');
+    }
+
+    const allBookings = await this.bookingService.findApprovedBookings();
+
+    if (allBookings.length === 0) {
+      const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'admin_manage_bookings');
+      const message = "🟢 Tasdiqlangan bookinglar yo'q.";
+      
+      try {
+        return await ctx.editMessageText(message, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML',
+        });
+      } catch (error) {
+        return ctx.reply(message, {
+          reply_markup: keyboard,
+          parse_mode: 'HTML',
+        });
+      }
+    }
+
+    // Group bookings by client (same client_id, barber_id, date, time)
+    const groupedBookings = new Map<string, typeof allBookings>();
+    allBookings.forEach((booking) => {
+      const key = `${booking.client_id}_${booking.barber_id}_${booking.date}_${booking.time}`;
+      if (!groupedBookings.has(key)) {
+        groupedBookings.set(key, []);
+      }
+      groupedBookings.get(key)!.push(booking);
+    });
+
+    const groupedArray = Array.from(groupedBookings.values());
+    const totalPages = groupedArray.length;
+    const currentPage = Math.max(1, Math.min(page, totalPages));
+    const currentBookingGroup = groupedArray[currentPage - 1];
+
+    if (!currentBookingGroup || currentBookingGroup.length === 0) {
+      const keyboard = new InlineKeyboard().text('⬅️ Ortga qaytish', 'admin_manage_bookings');
+      return ctx.reply('Booking topilmadi.', { reply_markup: keyboard });
+    }
+
+    const firstBooking = currentBookingGroup[0];
+    const client = firstBooking.client;
+    const barber = firstBooking.barber;
+    const services = currentBookingGroup.map((b) => b.service).filter((s) => s !== null);
+
+    const totalPrice = services.reduce((sum, s) => sum + Number(s?.price || 0), 0);
+    const totalDuration = services.reduce((sum, s) => sum + Number(s?.duration || 0), 0);
+
+    // Format date
+    const dateObj = new Date(firstBooking.date + 'T00:00:00');
+    const formattedDate = dateObj.toLocaleDateString('uz-UZ', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    // Format time range
+    const startTime = firstBooking.time;
+    let endTimeStr = '';
+    if (firstBooking.end_time) {
+      const endTime = new Date(firstBooking.end_time);
+      endTimeStr = endTime.toLocaleTimeString('uz-UZ', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } else if (services[0]?.duration) {
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startDate = new Date(`${firstBooking.date}T${startTime}:00`);
+      const endDate = new Date(
+        startDate.getTime() + totalDuration * 60 * 1000,
+      );
+      endTimeStr = endDate.toLocaleTimeString('uz-UZ', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+
+    const statusText = this.bookingService.getStatusDisplayInUzbek(firstBooking.status);
+
+    const message = `<b>🟢 Tasdiqlangan booking #${currentPage}</b>
+
+━━━━━━━━━━━━━━━━━━
+
+👤 <b>Mijoz:</b> ${client?.name || "Noma'lum"}
+📞 <b>Telefon:</b> ${client?.phone_number || "Yo'q"}
+${client?.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
+👨‍🔧 <b>Barber:</b> ${barber?.name || "Noma'lum"}
+
+💈 <b>Xizmatlar:</b>
+${services.map((s) => `• ${s?.name || "Noma'lum"} – ${Number(s?.price || 0).toLocaleString()} so'm (${s?.duration || 0} daqiqa)`).join('\n')}
+
+💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
+📅 <b>Sana:</b> ${formattedDate}
+🕒 <b>Vaqt:</b> ${startTime}${endTimeStr ? ` — ${endTimeStr}` : ''}
+📋 <b>Status:</b> ${statusText}
+
+━━━━━━━━━━━━━━━━━━
+
+📄 <b>Sahifa:</b> ${currentPage}/${totalPages}`;
+
+    const keyboard = new InlineKeyboard();
+    
+    // Status o'zgartirish tugmalari
+    keyboard
+      .text('✅ Yakunlash', `complete_booking_${firstBooking.id}`)
+      .row();
+
+    // Pagination tugmalari
+    if (totalPages > 1) {
+      if (currentPage > 1) {
+        keyboard.text('⬅️ Oldingi', `admin_approved_bookings_page_${currentPage - 1}`);
+      }
+      if (currentPage < totalPages) {
+        keyboard.text('Keyingi ➡️', `admin_approved_bookings_page_${currentPage + 1}`);
+      }
+      keyboard.row();
+    }
+
+    keyboard.text('⬅️ Ortga qaytish', 'admin_manage_bookings');
+
+    try {
+      return await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      return ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
   }
 }
 

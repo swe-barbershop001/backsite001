@@ -136,6 +136,25 @@ export class BookingService {
 
     const client_id = client.id;
 
+    // Barcha servislar davomiyligini yig'ish (end_time hisoblash uchun)
+    let totalDuration = 0;
+    for (const serviceId of service_ids) {
+      const service = await this.barberServiceService.findOne(serviceId);
+      if (service) {
+        totalDuration += service.duration;
+      }
+    }
+
+    // Validate booking time (check if time is not in the past)
+    this.validateBookingTime(bookingData.date, bookingData.time);
+
+    // end_time ni hisoblash
+    const endTime = this.calculateEndTime(
+      bookingData.date,
+      bookingData.time,
+      totalDuration,
+    );
+
     // Barcha servislar uchun booking yaratish
     const bookings: Booking[] = [];
     for (const serviceId of service_ids) {
@@ -144,6 +163,7 @@ export class BookingService {
         client_id,
         service_id: serviceId,
         status: BookingStatus.PENDING,
+        end_time: endTime,
       });
       const savedBooking = await this.bookingRepository.save(booking);
       bookings.push(savedBooking);
@@ -245,7 +265,7 @@ ${services.map((s) => `• ${s.name} – ${Number(s.price).toLocaleString()} so'
 💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
 📅 <b>Sana:</b> ${formattedDate}
 🕒 <b>Vaqt:</b> ${booking.time}
-📋 <b>Status:</b> 🟡 PENDING
+📋 <b>Status:</b> ${this.getStatusDisplayInUzbek(booking.status)}
 
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -423,7 +443,7 @@ ${services
 💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
 📅 <b>Sana:</b> ${formattedDate}
 🕒 <b>Vaqt:</b> ${booking.time}
-📋 <b>Status:</b> 🟡 PENDING
+📋 <b>Status:</b> ${this.getStatusDisplayInUzbek(booking.status)}
 
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -540,7 +560,7 @@ ${services
 💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa
 📅 <b>Sana:</b> ${formattedDate}
 🕒 <b>Vaqt:</b> ${booking.time}
-📋 <b>Status:</b> 🟡 PENDING
+📋 <b>Status:</b> ${this.getStatusDisplayInUzbek(booking.status)}
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -609,7 +629,7 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
 
 📅 <b>Sana:</b> ${formattedDate}
 🕒 <b>Vaqt:</b> ${booking.time}
-📋 <b>Status:</b> 🟢 APPROVED
+📋 <b>Status:</b> ${this.getStatusDisplayInUzbek(booking.status)}
 
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -640,43 +660,83 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
         return {
           title: '⏳ Booking kutilyapti',
           emoji: '🟡',
-          statusText: 'PENDING',
+          statusText: 'Kutilmoqda',
           footer: 'Admin tasdiqlashini kutmoqda...',
         };
       case BookingStatus.APPROVED:
         return {
           title: '✅ Booking tasdiqlandi!',
           emoji: '🟢',
-          statusText: 'APPROVED',
+          statusText: 'Tasdiqlangan',
           footer: 'Xizmatni vaqtida bajarishni unutmang! 🎉',
         };
       case BookingStatus.REJECTED:
         return {
           title: '❌ Booking bekor qilindi!',
           emoji: '❌',
-          statusText: 'REJECTED',
+          statusText: 'Rad etilgan',
           footer: 'Bu booking admin tomonidan bekor qilindi.',
         };
       case BookingStatus.CANCELLED:
         return {
           title: '🚫 Booking bekor qilindi!',
           emoji: '🚫',
-          statusText: 'CANCELLED',
+          statusText: 'Bekor qilingan',
           footer: 'Bu booking bekor qilindi.',
         };
       case BookingStatus.COMPLETED:
         return {
           title: '✅ Booking yakunlandi!',
           emoji: '✅',
-          statusText: 'COMPLETED',
+          statusText: 'Yakunlangan',
           footer: 'Xizmat muvaffaqiyatli yakunlandi! 🎉',
         };
       default:
         return {
           title: '📋 Booking status o\'zgartirildi',
           emoji: '📋',
-          statusText: String(status).toUpperCase(),
+          statusText: this.getStatusTextInUzbek(status),
         };
+    }
+  }
+
+  /**
+   * Get status display text in Uzbek
+   */
+  getStatusTextInUzbek(status: BookingStatus): string {
+    switch (status) {
+      case BookingStatus.PENDING:
+        return 'Kutilmoqda';
+      case BookingStatus.APPROVED:
+        return 'Tasdiqlangan';
+      case BookingStatus.REJECTED:
+        return 'Rad etilgan';
+      case BookingStatus.CANCELLED:
+        return 'Bekor qilingan';
+      case BookingStatus.COMPLETED:
+        return 'Yakunlangan';
+      default:
+        return String(status).toUpperCase();
+    }
+  }
+
+  /**
+   * Get status display with emoji in Uzbek
+   */
+  getStatusDisplayInUzbek(status: BookingStatus): string {
+    switch (status) {
+      case BookingStatus.PENDING:
+        return '🟡 Kutilmoqda';
+      case BookingStatus.APPROVED:
+        return '🟢 Tasdiqlangan';
+      case BookingStatus.REJECTED:
+        return '🔴 Rad etilgan';
+      case BookingStatus.CANCELLED:
+        return '⚫ Bekor qilingan';
+      case BookingStatus.COMPLETED:
+        return '✅ Yakunlangan';
+      default:
+        return `📋 ${String(status).toUpperCase()}`;
     }
   }
 
@@ -689,42 +749,42 @@ ${client.tg_username ? `💬 <b>Telegram:</b> @${client.tg_username}\n` : ''}
         return {
           title: '⏳ Booking yaratildi',
           emoji: '🟡',
-          statusText: 'PENDING',
+          statusText: 'Kutilmoqda',
           footer: '⏳ Admin tasdiqlashini kutmoqdasiz...',
         };
       case BookingStatus.APPROVED:
         return {
           title: '✅ Booking tasdiqlandi!',
           emoji: '🟢',
-          statusText: 'APPROVED',
+          statusText: 'Tasdiqlangan',
           footer: 'Xizmat vaqtida kelishingizni so\'raymiz! 🎉',
         };
       case BookingStatus.REJECTED:
         return {
           title: '❌ Booking bekor qilindi',
           emoji: '❌',
-          statusText: 'REJECTED',
+          statusText: 'Rad etilgan',
           footer: 'Afsus, sizning bookingingiz bekor qilindi.',
         };
       case BookingStatus.CANCELLED:
         return {
           title: '🚫 Booking bekor qilindi',
           emoji: '🚫',
-          statusText: 'CANCELLED',
+          statusText: 'Bekor qilingan',
           footer: 'Sizning bookingingiz bekor qilindi.',
         };
       case BookingStatus.COMPLETED:
         return {
           title: '✅ Booking yakunlandi!',
           emoji: '✅',
-          statusText: 'COMPLETED',
+          statusText: 'Yakunlangan',
           footer: 'Xizmat muvaffaqiyatli yakunlandi! 🎉',
         };
       default:
         return {
           title: '📋 Booking status o\'zgartirildi',
           emoji: '📋',
-          statusText: String(status).toUpperCase(),
+          statusText: this.getStatusTextInUzbek(status),
         };
     }
   }
@@ -1078,7 +1138,41 @@ Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
 
     return await this.bookingRepository.find({
       where: { client_id: clientId },
-      relations: ['barber', 'service'],
+      relations: {
+        barber: true,
+        service: true,
+      },
+      select: {
+        id: true,
+        client_id: true,
+        barber_id: true,
+        service_id: true,
+        date: true,
+        time: true,
+        status: true,
+        comment: true,
+        notification_sent: true,
+        end_time: true,
+        completion_notification_sent: true,
+        created_at: true,
+        barber: {
+          id: true,
+          name: true,
+          phone_number: true,
+          tg_id: true,
+          tg_username: true,
+          role: true,
+          working: true,
+          work_start_time: true,
+          work_end_time: true,
+        },
+        service: {
+          id: true,
+          name: true,
+          price: true,
+          duration: true,
+        },
+      },
       order: { date: 'ASC', time: 'ASC' },
     });
   }
@@ -1089,7 +1183,10 @@ Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
     }
 
     return await this.bookingRepository.find({
-      where: { barber_id: barberId },
+      where: { 
+        barber_id: barberId,
+        status: Not(BookingStatus.REJECTED),
+      },
       relations: ['client', 'service'],
       order: { date: 'ASC', time: 'ASC' },
     });
@@ -1100,6 +1197,53 @@ Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
       where: { status: BookingStatus.PENDING },
       relations: ['client', 'barber', 'service'],
       order: { created_at: 'ASC' },
+    });
+  }
+
+  /**
+   * Barberning PENDING bookinglarini topadi
+   */
+  async findPendingBookingsByBarberId(barberId: number): Promise<Booking[]> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
+    return await this.bookingRepository.find({
+      where: {
+        barber_id: barberId,
+        status: BookingStatus.PENDING,
+      },
+      relations: ['client', 'service'],
+      order: { date: 'ASC', time: 'ASC' },
+    });
+  }
+
+  /**
+   * Barberning APPROVED bookinglarini topadi
+   */
+  async findApprovedBookingsByBarberId(barberId: number): Promise<Booking[]> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
+    return await this.bookingRepository.find({
+      where: {
+        barber_id: barberId,
+        status: BookingStatus.APPROVED,
+      },
+      relations: ['client', 'service'],
+      order: { date: 'ASC', time: 'ASC' },
+    });
+  }
+
+  /**
+   * Barcha APPROVED bookinglarni topadi
+   */
+  async findApprovedBookings(): Promise<Booking[]> {
+    return await this.bookingRepository.find({
+      where: { status: BookingStatus.APPROVED },
+      relations: ['client', 'barber', 'service'],
+      order: { date: 'ASC', time: 'ASC' },
     });
   }
 
@@ -1150,6 +1294,60 @@ Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
     });
 
     return relatedBookings.length > 0 ? relatedBookings : [booking];
+  }
+
+  /**
+   * Calculate end time from date, time, and duration
+   */
+  private calculateEndTime(
+    date: string,
+    time: string,
+    duration: number,
+  ): Date {
+    // date: "2025-01-25", time: "10:00", duration: 30 (minutes)
+    const bookingDateTime = new Date(`${date}T${time}:00`);
+    const endTime = new Date(
+      bookingDateTime.getTime() + duration * 60 * 1000,
+    );
+    return endTime;
+  }
+
+  /**
+   * Validate booking time - check if time is not in the past
+   * For today's date, booking time must be at least 30 minutes from now
+   */
+  validateBookingTime(date: string, time: string): void {
+    // Get current date in yyyy-mm-dd format (Uzbekistan timezone)
+    const now = new Date();
+    const uzbekistanTime = new Date(
+      now.toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }),
+    );
+    const today = uzbekistanTime.toISOString().split('T')[0];
+
+    // If booking is for today, validate time
+    if (date === today) {
+      // Calculate minimum booking time (current time + 30 minutes)
+      const minimumTime = new Date(uzbekistanTime.getTime() + 30 * 60 * 1000);
+
+      // Parse booking time
+      const [hours, minutes] = time.split(':').map(Number);
+      const bookingDateTime = new Date(
+        uzbekistanTime.getFullYear(),
+        uzbekistanTime.getMonth(),
+        uzbekistanTime.getDate(),
+        hours,
+        minutes,
+        0,
+      );
+
+      // Check if booking time is in the past
+      if (bookingDateTime < minimumTime) {
+        const minTimeStr = `${minimumTime.getHours().toString().padStart(2, '0')}:${minimumTime.getMinutes().toString().padStart(2, '0')}`;
+        throw new BadRequestException(
+          `Siz o'tgan vaqtni tanlay olmaysiz. Iltimos, hozirgi vaqtdan keyingi vaqtni tanlang. Eng kamida ${minTimeStr} vaqtini tanlashingiz kerak.`,
+        );
+      }
+    }
   }
 
   async approve(id: number): Promise<Booking | null> {

@@ -51,6 +51,10 @@ export const getBarberReplyMenu = () => {
   return new Keyboard()
     .text('📋 Bronlarim')
     .row()
+    .text('📋 Bronlarni boshqarish')
+    .row()
+    .text('👤 Mijoz uchun bron yaratish')
+    .row()
     .text('🕒 Ishni boshlash')
     .text('⬛ Ishni tugatish')
     .row()
@@ -82,6 +86,8 @@ export const getAdminReplyMenu = () => {
   return new Keyboard()
     .text('📋 Yakunlanmagan bookinglar')
     .row()
+    .text('📋 Bookinglarni boshqarish')
+    .row()
     .text('💈 Barberlar')
     .text('📢 Post yuborish')
     .row()
@@ -89,4 +95,3 @@ export const getAdminReplyMenu = () => {
     .resized()
     .persistent();
 };
-

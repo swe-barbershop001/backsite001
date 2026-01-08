@@ -274,7 +274,7 @@ Iltimos, xizmat olish uchun barberni tanlang:
       const isSelected = selectedServiceIds.includes(service.id);
       keyboard
         .text(
-          `${isSelected ? '✅' : '⬜'} ${service.name} — ${service.price} so'm (${service.duration} min)`,
+          `${isSelected ? '✅' : '⬜'} ${service.name} (${service.duration} min)`,
           `service_toggle_${service.id}_${categoryId}`,
         )
         .row();
@@ -424,7 +424,7 @@ Iltimos, xizmat olish uchun barberni tanlang:
         const categoryIcon =
           services[0]?.category?.icon || '📁';
         const servicesText = services
-          .map((s) => `   ✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
+          .map((s) => `   ✂️ ${s.name} (${s.duration} min)`)
           .join('\n');
         return `<b>${categoryIcon} ${categoryName}:</b>\n${servicesText}`;
       })
@@ -569,9 +569,31 @@ ${servicesList}
       timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
     }
 
+    // If today's date, filter out past time slots (current time + 30 minutes)
+    let filteredTimeSlots = timeSlots;
+    if (this.isToday(date)) {
+      const uzbekistanTime = this.getCurrentTimeInUzbekistan();
+      const minimumTime = new Date(uzbekistanTime.getTime() + 30 * 60 * 1000);
+      const minHour = minimumTime.getHours();
+      const minMinute = minimumTime.getMinutes();
+
+      filteredTimeSlots = timeSlots.filter((time) => {
+        const [hours, minutes] = time.split(':').map(Number);
+        const timeDate = new Date(
+          uzbekistanTime.getFullYear(),
+          uzbekistanTime.getMonth(),
+          uzbekistanTime.getDate(),
+          hours,
+          minutes,
+          0,
+        );
+        return timeDate >= minimumTime;
+      });
+    }
+
     // Check availability for each time slot (considering total duration)
     const availableSlots: string[] = [];
-    for (const time of timeSlots) {
+    for (const time of filteredTimeSlots) {
       const isAvailable = await this.bookingService.checkTimeSlotAvailability(
         barberId,
         date,
@@ -710,6 +732,28 @@ Quyidagi vaqtlardan birini tanlang:
       0,
     );
 
+    // Validate time if today's date
+    if (this.isToday(date)) {
+      const uzbekistanTime = this.getCurrentTimeInUzbekistan();
+      const minimumTime = new Date(uzbekistanTime.getTime() + 30 * 60 * 1000);
+      const [hours, minutes] = time.split(':').map(Number);
+      const bookingDateTime = new Date(
+        uzbekistanTime.getFullYear(),
+        uzbekistanTime.getMonth(),
+        uzbekistanTime.getDate(),
+        hours,
+        minutes,
+        0,
+      );
+
+      if (bookingDateTime < minimumTime) {
+        const minTimeStr = this.getMinimumBookingTime();
+        return ctx.reply(
+          `Siz o'tgan vaqtni tanlay olmaysiz. Iltimos, hozirgi vaqtdan keyingi vaqtni tanlang. Eng kamida ${minTimeStr} vaqtini tanlashingiz kerak.`,
+        );
+      }
+    }
+
     // Final availability check (considering total duration)
     const isAvailable = await this.bookingService.checkTimeSlotAvailability(
       barberId,
@@ -800,25 +844,16 @@ Quyidagi vaqtlardan birini tanlang:
     let message = `🗂 <b>Sizning bookinglaringiz:</b>\n\n`;
 
     bookings.forEach((booking, index) => {
-      let statusDisplay = '';
-      if (booking.status === BookingStatus.APPROVED) {
-        statusDisplay = '🟢 APPROVED';
-      } else if (booking.status === BookingStatus.REJECTED) {
-        statusDisplay = '🔴 REJECTED';
-      } else if (booking.status === BookingStatus.CANCELLED) {
-        statusDisplay = '⚫ CANCELLED';
-      } else if (booking.status === BookingStatus.COMPLETED) {
-        statusDisplay = '✅ COMPLETED';
-      } else {
-        statusDisplay = '🟡 PENDING';
-      }
+      const statusDisplay = this.bookingService.getStatusDisplayInUzbek(
+        booking.status,
+      );
 
       const formattedDate = formatDate(booking.date);
 
       message += `
 <b>🔹 Booking #${index + 1}</b>
 
-👨‍🔧 <b>Barber:</b> ${booking.barber.name}${booking.barber.tg_username ? ` (@${booking.barber.tg_username})` : ''}
+👨‍🔧 <b>Barber:</b> ${booking.barber.name}${booking.barber.tg_username ? ` (@${booking.barber.tg_username})` : ''}${booking.barber.phone_number ? `\n📞 <b>Telefon:</b> ${booking.barber.phone_number}` : ''}
 
 💈 <b>Xizmat:</b> ${booking.service.name}
 💵 <b>Narxi:</b> ${Number(booking.service.price).toLocaleString()} so'm
@@ -984,6 +1019,27 @@ ${booking.comment ? `\n💬 <b>Izoh:</b> ${booking.comment}\n` : ''}
     const { selectedServiceIds, date } = state;
     if (!selectedServiceIds || !date) {
       return ctx.reply("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+    }
+
+    // Validate time if today's date
+    if (this.isToday(date)) {
+      const uzbekistanTime = this.getCurrentTimeInUzbekistan();
+      const minimumTime = new Date(uzbekistanTime.getTime() + 30 * 60 * 1000);
+      const bookingDateTime = new Date(
+        uzbekistanTime.getFullYear(),
+        uzbekistanTime.getMonth(),
+        uzbekistanTime.getDate(),
+        hours,
+        minutes,
+        0,
+      );
+
+      if (bookingDateTime < minimumTime) {
+        const minTimeStr = this.getMinimumBookingTime();
+        return ctx.reply(
+          `Siz o'tgan vaqtni kiritishingiz mumkin emas. Iltimos, hozirgi vaqtdan keyingi vaqtni kiriting. Eng kamida ${minTimeStr} vaqtini kiriting.`,
+        );
+      }
     }
 
     // Call handleTimeSelection with the entered time
@@ -1194,7 +1250,7 @@ Iltimos, xizmat olish uchun barberni tanlang:
 
     // Format services list
     const servicesList = selectedServices
-      .map((s) => `✂️ ${s.name} — ${s.price} so'm (${s.duration} min)`)
+      .map((s) => `✂️ ${s.name} (${s.duration} min)`)
       .join('\n');
 
     const workTime =
@@ -1280,5 +1336,34 @@ ${servicesList}
         parse_mode: 'HTML',
       });
     }
+  }
+
+  /**
+   * Get current time in Uzbekistan timezone
+   */
+  private getCurrentTimeInUzbekistan(): Date {
+    const now = new Date();
+    return new Date(
+      now.toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }),
+    );
+  }
+
+  /**
+   * Check if given date is today
+   */
+  private isToday(date: string): boolean {
+    const today = this.getCurrentTimeInUzbekistan()
+      .toISOString()
+      .split('T')[0];
+    return date === today;
+  }
+
+  /**
+   * Get minimum booking time (current time + 30 minutes) in HH:mm format
+   */
+  private getMinimumBookingTime(): string {
+    const uzbekistanTime = this.getCurrentTimeInUzbekistan();
+    const minimumTime = new Date(uzbekistanTime.getTime() + 30 * 60 * 1000);
+    return `${minimumTime.getHours().toString().padStart(2, '0')}:${minimumTime.getMinutes().toString().padStart(2, '0')}`;
   }
 }

@@ -29,6 +29,6 @@ export const getDatabaseConfig = (
     synchronize: synchronize,
     // Production'da migration'larni avtomatik ishga tushirish
     migrationsRun: isProduction,
-    logging: nodeEnv === 'development',
+    logging: false,
   };
 };

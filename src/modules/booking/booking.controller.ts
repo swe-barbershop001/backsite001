@@ -169,13 +169,38 @@ export class BookingController {
 
   @Delete(':id')
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: "Bronni o'chirish (faqat admin va super_admin'lar uchun)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Booking muvaffaqiyatli o'chirildi",
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: "Booking muvaffaqiyatli o'chirildi",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Noto'g'ri ID format yoki booking topilmadi",
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Autentifikatsiya talab qilinadi',
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Faqat admin va super_admin'lar booking o'chira oladi",
   })
   @UseGuards(AuthGuard, RoleGuard)
   @Role(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.bookingService.remove(+id);
+    return { message: "Booking muvaffaqiyatli o'chirildi" };
   }
 }

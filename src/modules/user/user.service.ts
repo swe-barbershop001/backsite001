@@ -310,6 +310,80 @@ export class UserService {
     });
   }
 
+  /**
+   * Telefon raqam yoki username orqali mijozni topish yoki yaratish
+   */
+  async findOrCreateClientByPhoneOrUsername(
+    phoneNumber?: string,
+    username?: string,
+    name?: string,
+  ): Promise<{ user: User; isNew: boolean }> {
+    let user: User | null = null;
+    let isNew = false;
+
+    // Avval telefon raqam orqali qidirish
+    if (phoneNumber) {
+      user = await this.findByPhoneNumber(phoneNumber);
+    }
+
+    // Agar telefon raqam orqali topilmasa, username orqali qidirish
+    if (!user && username) {
+      user = await this.findByTgUsername(username);
+    }
+
+    // Agar topilmasa, yangi mijoz yaratish
+    if (!user) {
+      try {
+        user = await this.create({
+          name: name,
+          phone_number: phoneNumber,
+          tg_username: username,
+          role: UserRole.CLIENT,
+        });
+        isNew = true;
+      } catch (error: any) {
+        // Agar unique constraint xatosi bo'lsa, qayta topishga harakat qilamiz
+        if (error?.message?.includes('allaqachon mavjud')) {
+          if (phoneNumber) {
+            user = await this.findByPhoneNumber(phoneNumber);
+          } else if (username) {
+            user = await this.findByTgUsername(username);
+          }
+          
+          if (!user) {
+            throw new BadRequestException(
+              'Mijoz yaratishda xatolik yuz berdi',
+            );
+          }
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      // Mavjud mijoz ma'lumotlarini yangilash (agar kerak bo'lsa)
+      const updateData: any = {};
+      if (name && user.name !== name) {
+        updateData.name = name;
+      }
+      if (phoneNumber && user.phone_number !== phoneNumber) {
+        updateData.phone_number = phoneNumber;
+      }
+      if (username && user.tg_username !== username) {
+        updateData.tg_username = username;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await this.update(user.id, updateData);
+        user = await this.findOne(user.id);
+        if (!user) {
+          throw new BadRequestException('Mijoz yangilashda xatolik yuz berdi');
+        }
+      }
+    }
+
+    return { user, isNew };
+  }
+
   async findOne(id: number): Promise<User | null> {
     return await this.userRepository.findOne({
       where: { id },
