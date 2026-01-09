@@ -66,10 +66,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
       this.logger.error('Unknown error occurred', exception);
     }
 
-    // Log error
-    this.logger.error(
-      `${request.method} ${request.url} - ${status} - ${message}`,
-    );
+    // Ignore known scanner/bot requests (404 only)
+    const shouldIgnore =
+      status === HttpStatus.NOT_FOUND &&
+      (request.url.includes('+CSCO') ||
+        request.url.includes('actuator') ||
+        request.url.includes('security.txt') ||
+        request.url.includes('SDK') ||
+        request.url.includes('pdown') ||
+        request.url === '/' ||
+        request.url.includes('.jar') ||
+        request.url.includes('.js'));
+
+    // Log error (ignore scanner requests)
+    if (!shouldIgnore) {
+      this.logger.error(
+        `${request.method} ${request.url} - ${status} - ${message}`,
+      );
+    }
 
     // Response format
     const errorResponse = {
