@@ -93,148 +93,480 @@ export class BarberMenuHandler {
       return ctx.reply('Siz barber emassiz.');
     }
 
-    const bookings = await this.bookingService.findByBarberId(barber.id);
+    // Barcha statuslardagi bronlar sonini hisoblash
+    const allCount = await this.bookingService.countByBarberIdWithStatus(
+      barber.id,
+    );
+    const pendingCount = await this.bookingService.countByBarberIdWithStatus(
+      barber.id,
+      BookingStatus.PENDING,
+    );
+    const approvedCount = await this.bookingService.countByBarberIdWithStatus(
+      barber.id,
+      BookingStatus.APPROVED,
+    );
+    const completedCount = await this.bookingService.countByBarberIdWithStatus(
+      barber.id,
+      BookingStatus.COMPLETED,
+    );
+    const cancelledCount = await this.bookingService.countByBarberIdWithStatus(
+      barber.id,
+      BookingStatus.CANCELLED,
+    );
 
-    if (bookings.length === 0) {
-      return ctx.reply('Sizda hozircha bookinglar yo\'q.');
+    // Agar hech qanday bron bo'lmasa
+    if (allCount === 0) {
+      const keyboard = new InlineKeyboard().text(
+        '⬅️ Ortga qaytish',
+        'menu_back',
+      );
+      try {
+        return await ctx.editMessageText(
+          "Sizda hozircha bookinglar yo'q.\n\n(3 oydan eski bronlar ko'rsatilmaydi)",
+          {
+            reply_markup: keyboard,
+            parse_mode: 'HTML',
+          },
+        );
+      } catch (error) {
+        return ctx.reply(
+          "Sizda hozircha bookinglar yo'q.\n\n(3 oydan eski bronlar ko'rsatilmaydi)",
+          {
+            reply_markup: keyboard,
+            parse_mode: 'HTML',
+          },
+        );
+      }
     }
 
-    // Get today's date in yyyy-mm-dd format (Uzbekistan timezone)
-    const now = new Date();
-    const uzbekistanTime = new Date(
-      now.toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }),
+    // Status tugmalarini yaratish (faqat mavjud statuslar uchun)
+    const keyboard = new InlineKeyboard();
+
+    // Status tugmalarini 2 qatorda joylashtirish
+    const statusButtons: Array<{ text: string; callback: string; count: number }> = [];
+
+    if (pendingCount > 0) {
+      statusButtons.push({
+        text: `🟡 Kutilmoqda (${pendingCount})`,
+        callback: `barber_bookings_status_pending_page_1`,
+        count: pendingCount,
+      });
+    }
+    if (approvedCount > 0) {
+      statusButtons.push({
+        text: `🟢 Tasdiqlangan (${approvedCount})`,
+        callback: `barber_bookings_status_approved_page_1`,
+        count: approvedCount,
+      });
+    }
+    if (completedCount > 0) {
+      statusButtons.push({
+        text: `✅ Yakunlangan (${completedCount})`,
+        callback: `barber_bookings_status_completed_page_1`,
+        count: completedCount,
+      });
+    }
+    if (cancelledCount > 0) {
+      statusButtons.push({
+        text: `⚫ Bekor qilingan (${cancelledCount})`,
+        callback: `barber_bookings_status_cancelled_page_1`,
+        count: cancelledCount,
+      });
+    }
+
+    // Status tugmalarini 2 qatorda joylashtirish
+    for (let i = 0; i < statusButtons.length; i += 2) {
+      const firstButton = statusButtons[i];
+      const secondButton = statusButtons[i + 1];
+
+      if (secondButton) {
+        keyboard
+          .text(firstButton.text, firstButton.callback)
+          .text(secondButton.text, secondButton.callback)
+          .row();
+      } else {
+        keyboard.text(firstButton.text, firstButton.callback).row();
+      }
+    }
+
+    // Barchasi tugmasi (status tugmalaridan keyin)
+    // Barchasi uchun jami bronlar sonini olish (3 oy filterisiz, bugungi sanadan)
+    const totalAllCount = await this.bookingService.countAllByBarberIdFromToday(
+      barber.id,
     );
-    const today = uzbekistanTime.toISOString().split('T')[0];
+    if (totalAllCount > 0) {
+      keyboard
+        .text(`📋 Barchasi (${totalAllCount})`, `barber_bookings_all_page_1`)
+        .row();
+    }
 
-    // Group bookings by date
-    const bookingsByDate = new Map<string, typeof bookings>();
-    bookings.forEach((booking) => {
-      if (!bookingsByDate.has(booking.date)) {
-        bookingsByDate.set(booking.date, []);
+    keyboard.text('⬅️ Ortga qaytish', 'menu_back');
+
+    const message = `<b>📋 Bronlarim</b>
+
+━━━━━━━━━━━━━━━━━━
+
+Bronlaringizni status bo'yicha ko'rish uchun quyidagi tugmalardan birini tanlang:
+
+━━━━━━━━━━━━━━━━━━
+
+<i>Status bo'yicha: 3 oydan eski bronlar ko'rsatilmaydi</i>`;
+
+    // Eski xabarni yangi xabar bilan almashtirish
+    try {
+      return await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      // Agar xabarni tahrirlab bo'lmasa, yangi xabar yuborish
+      return ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
+  }
+
+  async handleBarberBookingsByStatus(
+    ctx: Context,
+    status?: BookingStatus,
+    page: number = 1,
+  ) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId) return;
+
+    const barber = await this.userService.findBarberByTgId(tgId);
+    if (!barber) {
+      return ctx.reply('Siz barber emassiz.');
+    }
+
+    // Barcha booking'larni olish (status filter bilan)
+    const allBookings = await this.bookingService.findByBarberIdWithStatus(
+      barber.id,
+      status,
+    );
+
+    if (allBookings.length === 0) {
+      const keyboard = new InlineKeyboard().text(
+        '⬅️ Status menuga qaytish',
+        'barber_bookings_menu',
+      );
+      const statusText = status
+        ? this.bookingService.getStatusDisplayInUzbek(status)
+        : 'Barchasi';
+      try {
+        return await ctx.editMessageText(
+          `${statusText} statusida bookinglar topilmadi.\n\n(3 oydan eski bronlar ko'rsatilmaydi)`,
+          {
+            reply_markup: keyboard,
+            parse_mode: 'HTML',
+          },
+        );
+      } catch (error) {
+        return ctx.reply(
+          `${statusText} statusida bookinglar topilmadi.\n\n(3 oydan eski bronlar ko'rsatilmaydi)`,
+          {
+            reply_markup: keyboard,
+            parse_mode: 'HTML',
+          },
+        );
       }
-      bookingsByDate.get(booking.date)!.push(booking);
+    }
+
+    // Related booking'larni guruhlash (bir xil client_id, barber_id, date, time)
+    const groupedBookings = new Map<string, typeof allBookings>();
+    allBookings.forEach((booking) => {
+      const key = `${booking.client_id}_${booking.barber_id}_${booking.date}_${booking.time}`;
+      if (!groupedBookings.has(key)) {
+        groupedBookings.set(key, []);
+      }
+      groupedBookings.get(key)!.push(booking);
     });
 
-    // Sort dates
-    const sortedDates = Array.from(bookingsByDate.keys()).sort();
+    const groupedArray = Array.from(groupedBookings.values());
 
-    let message = '📋 Sizning bookinglaringiz\n\n';
+    // Pagination: har bir sahifada 2 ta bron guruhi
+    const itemsPerPage = 2;
+    const totalPages = Math.ceil(groupedArray.length / itemsPerPage);
+    const currentPage = Math.max(1, Math.min(page, totalPages));
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const bookingsOnPage = groupedArray.slice(startIndex, endIndex);
 
-    sortedDates.forEach((date, dateIndex) => {
-      // Date header
-      const isToday = date === today;
-      message += '══════════════════════\n';
-      message += `📅 ${date}${isToday ? ' (Bugun)' : ''}\n\n`;
-
-      const dateBookings = bookingsByDate.get(date)!;
-
-      // Group bookings by client (same client_id, barber_id, date, time)
-      const clientGroups = new Map<string, typeof dateBookings>();
-      dateBookings.forEach((booking) => {
-        const key = `${booking.client_id}_${booking.barber_id}_${booking.date}_${booking.time}`;
-        if (!clientGroups.has(key)) {
-          clientGroups.set(key, []);
-        }
-        clientGroups.get(key)!.push(booking);
+    // Format date for display
+    const formatDate = (dateStr: string) => {
+      const dateObj = new Date(dateStr + 'T00:00:00');
+      return dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
       });
+    };
 
-      // Process each client group
-      const clientGroupArray = Array.from(clientGroups.values());
-      clientGroupArray.forEach((clientBookings, clientIndex) => {
-        const firstBooking = clientBookings[0];
-        const client = firstBooking.client;
+    // Status text
+    const statusText = status
+      ? this.bookingService.getStatusDisplayInUzbek(status)
+      : 'Barchasi';
 
-        if (client) {
-          // Client info
-          message += `👤 Mijoz: ${client.name || "Noma'lum"}\n`;
-          message += `📞 Telefon: ${client.phone_number || "Yo'q"}\n\n`;
-        }
+    // Xabar yaratish
+    let message = `<b>📋 Bronlarim - ${statusText}</b>\n\n`;
+    message += '━━━━━━━━━━━━━━━━━━\n\n';
 
-        // Services for this client group
-        clientBookings.forEach((booking, serviceIndex) => {
-          const service = booking.service;
-          const serviceName = service?.name || "Noma'lum xizmat";
-          const servicePrice = service?.price || 0;
-          const statusText = this.bookingService.getStatusDisplayInUzbek(
-            booking.status,
-          );
+    bookingsOnPage.forEach((bookingGroup, groupIndex) => {
+      const firstBooking = bookingGroup[0];
+      if (!firstBooking.client || !firstBooking.service) return;
 
-          // Get service emoji
-          const getServiceEmoji = (name: string): string => {
-            const lowerName = name.toLowerCase();
-            if (lowerName.includes('soch olish')) return '✂️';
-            if (lowerName.includes('soqol') && lowerName.includes('tekislash')) return '💈';
-            if (lowerName.includes('soqol olish')) return '🧔';
-            if (lowerName.includes('soch bo\'yash') || lowerName.includes('soch boyash')) return '🎨';
-            return '💈';
-          };
+      const globalIndex = startIndex + groupIndex + 1;
+      const statusDisplay = this.bookingService.getStatusDisplayInUzbek(
+        firstBooking.status,
+      );
+      const formattedDate = formatDate(firstBooking.date);
 
-          // Format time range
-          const startTime = booking.time;
-          let endTimeStr = '';
-          if (booking.end_time) {
-            const endTime = new Date(booking.end_time);
-            endTimeStr = endTime.toLocaleTimeString('uz-UZ', {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-          } else if (service?.duration) {
-            // Calculate end time if not available
-            const [hours, minutes] = startTime.split(':').map(Number);
-            const startDate = new Date(`${booking.date}T${startTime}:00`);
-            const endDate = new Date(
-              startDate.getTime() + service.duration * 60 * 1000,
-            );
-            endTimeStr = endDate.toLocaleTimeString('uz-UZ', {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-          }
+      // Barcha xizmatlarni olish
+      const services = bookingGroup
+        .map((b) => b.service)
+        .filter((s) => s !== null);
 
-          // Get time emoji based on hour
-          const getTimeEmoji = (timeStr: string): string => {
-            const [hours] = timeStr.split(':').map(Number);
-            if (hours >= 6 && hours < 12) return '🕘'; // Morning
-            if (hours >= 12 && hours < 18) return '🕓'; // Afternoon
-            if (hours >= 18 && hours < 22) return '🕕'; // Evening
-            return '🕐'; // Night/Early morning
-          };
-          const timeEmoji = getTimeEmoji(startTime);
+      const totalPrice = services.reduce(
+        (sum, s) => sum + Number(s?.price || 0),
+        0,
+      );
+      const totalDuration = services.reduce(
+        (sum, s) => sum + Number(s?.duration || 0),
+        0,
+      );
 
-          // Format price with spaces (e.g., 50000 -> "50 000")
-          const formattedPrice = Number(servicePrice)
-            .toLocaleString('uz-UZ')
-            .replace(/,/g, ' ');
+      // Xizmatlar ro'yxati
+      const servicesText =
+        services.length > 1
+          ? services
+              .map(
+                (s) =>
+                  `• ${s?.name || "Noma'lum"} – ${Number(s?.price || 0).toLocaleString()} so'm (${s?.duration || 0} daqiqa)`,
+              )
+              .join('\n')
+          : `• ${services[0]?.name || "Noma'lum"} – ${Number(services[0]?.price || 0).toLocaleString()} so'm (${services[0]?.duration || 0} daqiqa)`;
 
-          // Number emoji (1️⃣, 2️⃣, etc.)
-          const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-          const numberEmoji = numberEmojis[serviceIndex] || `${serviceIndex + 1}.`;
+      message += `<b>🔹 Booking #${globalIndex}</b>\n\n`;
+      message += `👤 <b>Mijoz:</b> ${firstBooking.client.name}${
+        firstBooking.client.tg_username
+          ? ` (@${firstBooking.client.tg_username})`
+          : ''
+      }${
+        firstBooking.client.phone_number
+          ? `\n📞 <b>Telefon:</b> ${firstBooking.client.phone_number}`
+          : ''
+      }\n\n`;
+      message += `💈 <b>Xizmat${services.length > 1 ? 'lar' : ''}:</b>\n${servicesText}\n\n`;
+      message += `💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa\n\n`;
+      message += `📅 <b>Sana:</b> ${formattedDate}\n`;
+      message += `🕒 <b>Vaqt:</b> ${firstBooking.time}\n\n`;
+      message += `📌 <b>Status:</b> ${statusDisplay}\n`;
 
-          message += `${numberEmoji} ${getServiceEmoji(serviceName)} ${serviceName}\n`;
-          if (endTimeStr) {
-            message += `${timeEmoji} ${startTime} — ${endTimeStr}\n`;
-          } else {
-            message += `${timeEmoji} ${startTime}\n`;
-          }
-          message += `💰 ${formattedPrice} so'm\n`;
-          message += `${statusText}\n\n`;
+      if (firstBooking.comment) {
+        message += `\n💬 <b>Izoh:</b> ${firstBooking.comment}\n`;
+      }
+
+      message += '\n━━━━━━━━━━━━━━━━━━\n\n';
+    });
+
+    message += `📄 <b>Sahifa:</b> ${currentPage}/${totalPages}`;
+
+    // Keyboard yaratish
+    const keyboard = new InlineKeyboard();
+
+    // Pagination tugmalari
+    if (totalPages > 1) {
+      if (currentPage > 1) {
+        const callbackData = status
+          ? `barber_bookings_status_${status}_page_${currentPage - 1}`
+          : `barber_bookings_all_page_${currentPage - 1}`;
+        keyboard.text('⬅️ Oldingi', callbackData);
+      }
+      if (currentPage < totalPages) {
+        const callbackData = status
+          ? `barber_bookings_status_${status}_page_${currentPage + 1}`
+          : `barber_bookings_all_page_${currentPage + 1}`;
+        keyboard.text('Keyingi ➡️', callbackData);
+      }
+      keyboard.row();
+    }
+
+    // Ortga qaytish tugmasi
+    keyboard.text('⬅️ Status menuga qaytish', 'barber_bookings_menu');
+
+    try {
+      return await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      return ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
+  }
+
+  async handleAllBarberBookings(ctx: Context, page: number = 1) {
+    const tgId = ctx.from?.id.toString();
+    if (!tgId) return;
+
+    const barber = await this.userService.findBarberByTgId(tgId);
+    if (!barber) {
+      return ctx.reply('Siz barber emassiz.');
+    }
+
+    // Barcha booking'larni bugungi sanadan olish (limit/offset bilan emas, barchasini olamiz)
+    const allBookings = await this.bookingService.findAllByBarberIdFromToday(
+      barber.id,
+    );
+
+    if (allBookings.length === 0) {
+      const keyboard = new InlineKeyboard().text(
+        '⬅️ Status menuga qaytish',
+        'barber_bookings_menu',
+      );
+      try {
+        return await ctx.editMessageText(
+          "Sizda bugungi sanadan keyingi bookinglar topilmadi.",
+          {
+            reply_markup: keyboard,
+            parse_mode: 'HTML',
+          },
+        );
+      } catch (error) {
+        return ctx.reply("Sizda bugungi sanadan keyingi bookinglar topilmadi.", {
+          reply_markup: keyboard,
+          parse_mode: 'HTML',
         });
-
-        // Separator between different client bookings on the same day
-        if (clientIndex < clientGroupArray.length - 1) {
-          message += '──────────────────────\n\n';
-        }
-      });
-
-      // Close date section
-      if (dateIndex < sortedDates.length - 1) {
-        message += '\n';
       }
+    }
+
+    // Related booking'larni guruhlash (bir xil client_id, barber_id, date, time)
+    const groupedBookings = new Map<string, typeof allBookings>();
+    allBookings.forEach((booking) => {
+      const key = `${booking.client_id}_${booking.barber_id}_${booking.date}_${booking.time}`;
+      if (!groupedBookings.has(key)) {
+        groupedBookings.set(key, []);
+      }
+      groupedBookings.get(key)!.push(booking);
     });
 
-    message += '══════════════════════';
+    const groupedArray = Array.from(groupedBookings.values());
 
-    return ctx.reply(message, { parse_mode: 'HTML' });
+    // Pagination: har bir sahifada 5 ta bron guruhi
+    const itemsPerPage = 5;
+    const totalPages = Math.ceil(groupedArray.length / itemsPerPage);
+    const currentPage = Math.max(1, Math.min(page, totalPages));
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const bookingsOnPage = groupedArray.slice(startIndex, endIndex);
+
+    // Format date for display
+    const formatDate = (dateStr: string) => {
+      const dateObj = new Date(dateStr + 'T00:00:00');
+      return dateObj.toLocaleDateString('uz-UZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    };
+
+    // Xabar yaratish
+    let message = `<b>📋 Barcha Bronlarim</b>\n\n`;
+    message += '━━━━━━━━━━━━━━━━━━\n\n';
+
+    bookingsOnPage.forEach((bookingGroup, groupIndex) => {
+      const firstBooking = bookingGroup[0];
+      if (!firstBooking.client || !firstBooking.service) return;
+
+      const globalIndex = startIndex + groupIndex + 1;
+      const statusDisplay = this.bookingService.getStatusDisplayInUzbek(
+        firstBooking.status,
+      );
+      const formattedDate = formatDate(firstBooking.date);
+
+      // Barcha xizmatlarni olish
+      const services = bookingGroup
+        .map((b) => b.service)
+        .filter((s) => s !== null);
+
+      const totalPrice = services.reduce(
+        (sum, s) => sum + Number(s?.price || 0),
+        0,
+      );
+      const totalDuration = services.reduce(
+        (sum, s) => sum + Number(s?.duration || 0),
+        0,
+      );
+
+      // Xizmatlar ro'yxati
+      const servicesText =
+        services.length > 1
+          ? services
+              .map(
+                (s) =>
+                  `• ${s?.name || "Noma'lum"} – ${Number(s?.price || 0).toLocaleString()} so'm (${s?.duration || 0} daqiqa)`,
+              )
+              .join('\n')
+          : `• ${services[0]?.name || "Noma'lum"} – ${Number(services[0]?.price || 0).toLocaleString()} so'm (${services[0]?.duration || 0} daqiqa)`;
+
+      message += `<b>🔹 Booking #${globalIndex}</b>\n\n`;
+      message += `👤 <b>Mijoz:</b> ${firstBooking.client.name}${
+        firstBooking.client.tg_username
+          ? ` (@${firstBooking.client.tg_username})`
+          : ''
+      }${
+        firstBooking.client.phone_number
+          ? `\n📞 <b>Telefon:</b> ${firstBooking.client.phone_number}`
+          : ''
+      }\n\n`;
+      message += `💈 <b>Xizmat${services.length > 1 ? 'lar' : ''}:</b>\n${servicesText}\n\n`;
+      message += `💵 <b>Jami:</b> ${totalPrice.toLocaleString()} so'm, ${totalDuration} daqiqa\n\n`;
+      message += `📅 <b>Sana:</b> ${formattedDate}\n`;
+      message += `🕒 <b>Vaqt:</b> ${firstBooking.time}\n\n`;
+      message += `📌 <b>Status:</b> ${statusDisplay}\n`;
+
+      if (firstBooking.comment) {
+        message += `\n💬 <b>Izoh:</b> ${firstBooking.comment}\n`;
+      }
+
+      message += '\n━━━━━━━━━━━━━━━━━━\n\n';
+    });
+
+    message += `📄 <b>Sahifa:</b> ${currentPage}/${totalPages}`;
+
+    // Keyboard yaratish
+    const keyboard = new InlineKeyboard();
+
+    // Pagination tugmalari
+    if (totalPages > 1) {
+      if (currentPage > 1) {
+        keyboard.text('⬅️ Oldingi', `barber_bookings_all_page_${currentPage - 1}`);
+      }
+      if (currentPage < totalPages) {
+        keyboard.text('Keyingi ➡️', `barber_bookings_all_page_${currentPage + 1}`);
+      }
+      keyboard.row();
+    }
+
+    // Ortga qaytish tugmasi
+    keyboard.text('⬅️ Status menuga qaytish', 'barber_bookings_menu');
+
+    try {
+      return await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      return ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: 'HTML',
+      });
+    }
   }
 
   async handleMyServices(ctx: Context) {

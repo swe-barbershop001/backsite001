@@ -43,6 +43,15 @@ export class Booking {
   @Column({ default: false })
   notification_sent: boolean; // 30 daqiqa oldin ogohlantirish yuborilganligi
 
+  @Column({ default: false })
+  reminder_1_day_sent: boolean; // 1 kun oldin eslatma yuborilganligi
+
+  @Column({ default: false })
+  reminder_3_hours_sent: boolean; // 3 soat oldin eslatma yuborilganligi
+
+  @Column({ default: false })
+  reminder_1_hour_sent: boolean; // 1 soat oldin eslatma yuborilganligi
+
   @Column({ type: 'timestamp', nullable: true })
   end_time: Date; // Booking tugash vaqti (date + time + service duration)
 

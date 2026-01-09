@@ -5,7 +5,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, IsNull, Between } from 'typeorm';
+import { Repository, In, Not, IsNull, Between, MoreThanOrEqual } from 'typeorm';
 import { Booking } from './entities/booking.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingStatisticsDto } from './dto/booking-statistics.dto';
@@ -1177,6 +1177,158 @@ Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
     });
   }
 
+  /**
+   * Client'ning bronlarini status va sana filteri bilan olish
+   * @param clientId - Mijoz ID
+   * @param status - Booking status (ixtiyoriy)
+   * @param limit - Pagination uchun limit (default: undefined - barcha)
+   * @param offset - Pagination uchun offset (default: 0)
+   * @returns Filterlangan booking'lar ro'yxati
+   */
+  async findByClientIdWithStatus(
+    clientId: number,
+    status?: BookingStatus,
+    limit?: number,
+    offset?: number,
+  ): Promise<Booking[]> {
+    if (!clientId || isNaN(clientId)) {
+      throw new BadRequestException("Noto'g'ri mijoz ID format");
+    }
+
+    // 3 oydan oldingi sanani hisoblash
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+    // Where condition yaratish
+    const whereCondition: any = {
+      client_id: clientId,
+      date: MoreThanOrEqual(threeMonthsAgoStr), // 3 oydan yangi bronlar
+    };
+
+    // Agar status berilgan bo'lsa, filter qo'shish
+    if (status) {
+      whereCondition.status = status;
+    }
+
+    const queryBuilder = this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.barber', 'barber')
+      .leftJoinAndSelect('booking.service', 'service')
+      .where('booking.client_id = :clientId', { clientId })
+      .andWhere('booking.date >= :threeMonthsAgo', { threeMonthsAgo: threeMonthsAgoStr })
+      .orderBy('booking.date', 'ASC')
+      .addOrderBy('booking.time', 'ASC');
+
+    // Status filter qo'shish
+    if (status) {
+      queryBuilder.andWhere('booking.status = :status', { status });
+    }
+
+    // Pagination
+    if (limit !== undefined) {
+      queryBuilder.limit(limit);
+    }
+    if (offset !== undefined) {
+      queryBuilder.offset(offset);
+    }
+
+    return await queryBuilder.getMany();
+  }
+
+  /**
+   * Client'ning bronlar sonini status bo'yicha hisoblash
+   * @param clientId - Mijoz ID
+   * @param status - Booking status (ixtiyoriy)
+   * @returns Booking'lar soni
+   */
+  async countByClientIdWithStatus(
+    clientId: number,
+    status?: BookingStatus,
+  ): Promise<number> {
+    if (!clientId || isNaN(clientId)) {
+      throw new BadRequestException("Noto'g'ri mijoz ID format");
+    }
+
+    // 3 oydan oldingi sanani hisoblash
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+    const queryBuilder = this.bookingRepository
+      .createQueryBuilder('booking')
+      .where('booking.client_id = :clientId', { clientId })
+      .andWhere('booking.date >= :threeMonthsAgo', { threeMonthsAgo: threeMonthsAgoStr });
+
+    // Status filter qo'shish
+    if (status) {
+      queryBuilder.andWhere('booking.status = :status', { status });
+    }
+
+    return await queryBuilder.getCount();
+  }
+
+  /**
+   * Client'ning barcha bronlarini bugungi sanadan boshlab olish (filter yo'q)
+   * @param clientId - Mijoz ID
+   * @param limit - Pagination uchun limit (default: undefined - barcha)
+   * @param offset - Pagination uchun offset (default: 0)
+   * @returns Filterlangan booking'lar ro'yxati
+   */
+  async findAllByClientIdFromToday(
+    clientId: number,
+    limit?: number,
+    offset?: number,
+  ): Promise<Booking[]> {
+    if (!clientId || isNaN(clientId)) {
+      throw new BadRequestException("Noto'g'ri mijoz ID format");
+    }
+
+    // Bugungi sana
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+    const queryBuilder = this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.barber', 'barber')
+      .leftJoinAndSelect('booking.service', 'service')
+      .where('booking.client_id = :clientId', { clientId })
+      .andWhere('booking.date >= :today', { today: todayStr })
+      .orderBy('booking.date', 'ASC')
+      .addOrderBy('booking.time', 'ASC');
+
+    // Pagination
+    if (limit !== undefined) {
+      queryBuilder.limit(limit);
+    }
+    if (offset !== undefined) {
+      queryBuilder.offset(offset);
+    }
+
+    return await queryBuilder.getMany();
+  }
+
+  /**
+   * Client'ning barcha bronlar sonini bugungi sanadan boshlab hisoblash
+   * @param clientId - Mijoz ID
+   * @returns Booking'lar soni
+   */
+  async countAllByClientIdFromToday(clientId: number): Promise<number> {
+    if (!clientId || isNaN(clientId)) {
+      throw new BadRequestException("Noto'g'ri mijoz ID format");
+    }
+
+    // Bugungi sana
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+    return await this.bookingRepository
+      .createQueryBuilder('booking')
+      .where('booking.client_id = :clientId', { clientId })
+      .andWhere('booking.date >= :today', { today: todayStr })
+      .getCount();
+  }
+
   async findByBarberId(barberId: number): Promise<Booking[]> {
     if (!barberId || isNaN(barberId)) {
       throw new BadRequestException("Noto'g'ri sartarosh ID format");
@@ -1190,6 +1342,151 @@ Xizmat sifatini baholash va tavsiyalaringizni qoldiring.
       relations: ['client', 'service'],
       order: { date: 'ASC', time: 'ASC' },
     });
+  }
+
+  /**
+   * Barber'ning bronlarini status va sana filteri bilan olish
+   * @param barberId - Barber ID
+   * @param status - Booking status (ixtiyoriy)
+   * @param limit - Pagination uchun limit (default: undefined - barcha)
+   * @param offset - Pagination uchun offset (default: 0)
+   * @returns Filterlangan booking'lar ro'yxati
+   */
+  async findByBarberIdWithStatus(
+    barberId: number,
+    status?: BookingStatus,
+    limit?: number,
+    offset?: number,
+  ): Promise<Booking[]> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
+    // 3 oydan oldingi sanani hisoblash
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+    const queryBuilder = this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.client', 'client')
+      .leftJoinAndSelect('booking.service', 'service')
+      .where('booking.barber_id = :barberId', { barberId })
+      .andWhere('booking.date >= :threeMonthsAgo', { threeMonthsAgo: threeMonthsAgoStr })
+      .andWhere('booking.status != :rejectedStatus', { rejectedStatus: BookingStatus.REJECTED })
+      .orderBy('booking.date', 'ASC')
+      .addOrderBy('booking.time', 'ASC');
+
+    // Status filter qo'shish
+    if (status) {
+      queryBuilder.andWhere('booking.status = :status', { status });
+    }
+
+    // Pagination
+    if (limit !== undefined) {
+      queryBuilder.limit(limit);
+    }
+    if (offset !== undefined) {
+      queryBuilder.offset(offset);
+    }
+
+    return await queryBuilder.getMany();
+  }
+
+  /**
+   * Barber'ning bronlar sonini status bo'yicha hisoblash
+   * @param barberId - Barber ID
+   * @param status - Booking status (ixtiyoriy)
+   * @returns Booking'lar soni
+   */
+  async countByBarberIdWithStatus(
+    barberId: number,
+    status?: BookingStatus,
+  ): Promise<number> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
+    // 3 oydan oldingi sanani hisoblash
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+    const queryBuilder = this.bookingRepository
+      .createQueryBuilder('booking')
+      .where('booking.barber_id = :barberId', { barberId })
+      .andWhere('booking.date >= :threeMonthsAgo', { threeMonthsAgo: threeMonthsAgoStr })
+      .andWhere('booking.status != :rejectedStatus', { rejectedStatus: BookingStatus.REJECTED });
+
+    // Status filter qo'shish
+    if (status) {
+      queryBuilder.andWhere('booking.status = :status', { status });
+    }
+
+    return await queryBuilder.getCount();
+  }
+
+  /**
+   * Barber'ning barcha bronlarini bugungi sanadan boshlab olish (filter yo'q)
+   * @param barberId - Barber ID
+   * @param limit - Pagination uchun limit (default: undefined - barcha)
+   * @param offset - Pagination uchun offset (default: 0)
+   * @returns Filterlangan booking'lar ro'yxati
+   */
+  async findAllByBarberIdFromToday(
+    barberId: number,
+    limit?: number,
+    offset?: number,
+  ): Promise<Booking[]> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
+    // Bugungi sana
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+    const queryBuilder = this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.client', 'client')
+      .leftJoinAndSelect('booking.service', 'service')
+      .where('booking.barber_id = :barberId', { barberId })
+      .andWhere('booking.date >= :today', { today: todayStr })
+      .andWhere('booking.status != :rejectedStatus', { rejectedStatus: BookingStatus.REJECTED })
+      .orderBy('booking.date', 'ASC')
+      .addOrderBy('booking.time', 'ASC');
+
+    // Pagination
+    if (limit !== undefined) {
+      queryBuilder.limit(limit);
+    }
+    if (offset !== undefined) {
+      queryBuilder.offset(offset);
+    }
+
+    return await queryBuilder.getMany();
+  }
+
+  /**
+   * Barber'ning barcha bronlar sonini bugungi sanadan boshlab hisoblash
+   * @param barberId - Barber ID
+   * @returns Booking'lar soni
+   */
+  async countAllByBarberIdFromToday(barberId: number): Promise<number> {
+    if (!barberId || isNaN(barberId)) {
+      throw new BadRequestException("Noto'g'ri sartarosh ID format");
+    }
+
+    // Bugungi sana
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+    return await this.bookingRepository
+      .createQueryBuilder('booking')
+      .where('booking.barber_id = :barberId', { barberId })
+      .andWhere('booking.date >= :today', { today: todayStr })
+      .andWhere('booking.status != :rejectedStatus', { rejectedStatus: BookingStatus.REJECTED })
+      .getCount();
   }
 
   async findPendingBookings(): Promise<Booking[]> {

@@ -293,6 +293,34 @@ export class BotService implements OnModuleInit {
       await ctx.answerCallbackQuery();
     });
 
+    // Client bookings status filter callback handlers
+    this.bot.callbackQuery(
+      /^client_bookings_status_(\w+)_page_(\d+)$/,
+      async (ctx) => {
+        const statusStr = ctx.match[1].toLowerCase();
+        const page = parseInt(ctx.match[2]);
+        // Convert string to BookingStatus enum (enum values are lowercase)
+        const status = statusStr as BookingStatus;
+        await this.bookingHandler.handleClientBookingsByStatus(
+          ctx,
+          status,
+          page,
+        );
+        await ctx.answerCallbackQuery();
+      },
+    );
+
+    this.bot.callbackQuery(/^client_bookings_all_page_(\d+)$/, async (ctx) => {
+      const page = parseInt(ctx.match[1]);
+      await this.bookingHandler.handleAllClientBookings(ctx, page);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('client_bookings_menu', async (ctx) => {
+      await this.bookingHandler.handleMyBookings(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
     this.bot.callbackQuery('menu_profile', async (ctx) => {
       await this.clientMenuHandler.handleMyProfile(ctx);
       await ctx.answerCallbackQuery();
@@ -300,6 +328,34 @@ export class BotService implements OnModuleInit {
 
     // Barber menyu callback handler'lari
     this.bot.callbackQuery('barber_bookings', async (ctx) => {
+      await this.barberMenuHandler.handleMyBookings(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Barber bookings status filter callback handlers
+    this.bot.callbackQuery(
+      /^barber_bookings_status_(\w+)_page_(\d+)$/,
+      async (ctx) => {
+        const statusStr = ctx.match[1].toLowerCase();
+        const page = parseInt(ctx.match[2]);
+        // Convert string to BookingStatus enum (enum values are lowercase)
+        const status = statusStr as BookingStatus;
+        await this.barberMenuHandler.handleBarberBookingsByStatus(
+          ctx,
+          status,
+          page,
+        );
+        await ctx.answerCallbackQuery();
+      },
+    );
+
+    this.bot.callbackQuery(/^barber_bookings_all_page_(\d+)$/, async (ctx) => {
+      const page = parseInt(ctx.match[1]);
+      await this.barberMenuHandler.handleAllBarberBookings(ctx, page);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('barber_bookings_menu', async (ctx) => {
       await this.barberMenuHandler.handleMyBookings(ctx);
       await ctx.answerCallbackQuery();
     });
