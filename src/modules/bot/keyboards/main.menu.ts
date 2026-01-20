@@ -88,6 +88,8 @@ export const getAdminReplyMenu = () => {
     .row()
     .text('📋 Bookinglarni boshqarish')
     .row()
+    .text('👤 Mijoz uchun bron yaratish')
+    .row()
     .text('💈 Barberlar')
     .text('📢 Post yuborish')
     .row()

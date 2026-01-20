@@ -58,6 +58,7 @@ export class BotService implements OnModuleInit {
       this.userService,
       this.barberServiceService,
       this.bookingService,
+      this.serviceCategoryService,
     );
     this.barberMenuHandler = new BarberMenuHandler(
       this.userService,
@@ -545,6 +546,120 @@ export class BotService implements OnModuleInit {
     // Admin post yuborish callback handler
     this.bot.callbackQuery('admin_post', async (ctx) => {
       await this.postHandler.handlePostCreation(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    // Admin mijoz booking yaratish callback handler'lari
+    this.bot.callbackQuery('admin_create_client_booking', async (ctx) => {
+      await this.clientMenuHandler.handleAdminCreateClientBooking(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_barber_select_(\d+)$/, async (ctx) => {
+      const barberId = parseInt(ctx.match[1]);
+      await this.clientMenuHandler.handleAdminBarberSelect(ctx, barberId);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('admin_search_client_phone', async (ctx) => {
+      await this.clientMenuHandler.handleAdminClientSearchByPhone(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('admin_search_client_username', async (ctx) => {
+      await this.clientMenuHandler.handleAdminClientSearchByUsername(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_select_client_(\d+)$/, async (ctx) => {
+      const clientId = parseInt(ctx.match[1]);
+      await this.clientMenuHandler.handleAdminSelectClient(ctx, clientId);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_category_select_(\d+)$/, async (ctx) => {
+      const categoryId = parseInt(ctx.match[1]);
+      await this.clientMenuHandler.handleAdminCategorySelect(ctx, categoryId, 1);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_category_page_(\d+)_(\d+)$/, async (ctx) => {
+      const categoryId = parseInt(ctx.match[1]);
+      const page = parseInt(ctx.match[2]);
+      await this.clientMenuHandler.handleAdminCategorySelect(ctx, categoryId, page);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_service_toggle_(\d+)_(\d+)$/, async (ctx) => {
+      const serviceId = parseInt(ctx.match[1]);
+      const categoryId = parseInt(ctx.match[2]);
+      await this.clientMenuHandler.handleAdminServiceToggle(ctx, serviceId, categoryId);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('admin_service_continue', async (ctx) => {
+      await this.clientMenuHandler.handleAdminServiceContinue(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('admin_add_more_categories', async (ctx) => {
+      await this.clientMenuHandler.handleAdminServiceSelectionStart(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_date_select_([\d-]+)$/, async (ctx) => {
+      const date = ctx.match[1];
+      await this.clientMenuHandler.handleAdminDateSelection(ctx, date);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_time_select_([\d-]+)_([\d:]+)$/, async (ctx) => {
+      const date = ctx.match[1];
+      const time = ctx.match[2];
+      await this.clientMenuHandler.handleAdminTimeSelection(ctx, date, time);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery(/^admin_time_input_([\d-]+)$/, async (ctx) => {
+      const date = ctx.match[1];
+      await ctx.reply(
+        "Iltimos, vaqtni HH:mm formatida kiriting (masalan: 14:30):",
+      );
+      // State'ni yangilash - time_input bosqichiga o'tkazish
+      const tgId = ctx.from?.id.toString();
+      if (tgId && ctx.from) {
+        const state = this.clientMenuHandler.adminBookingStates?.get(ctx.from.id);
+        if (state) {
+          this.clientMenuHandler.adminBookingStates.set(ctx.from.id, {
+            ...state,
+            step: 'time',
+          });
+        }
+      }
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('admin_confirm_booking', async (ctx) => {
+      await this.clientMenuHandler.handleAdminConfirmBooking(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('admin_skip_phone', async (ctx) => {
+      await this.clientMenuHandler.handleAdminSkipPhone(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('admin_skip_username', async (ctx) => {
+      await this.clientMenuHandler.handleAdminSkipUsername(ctx);
+      await ctx.answerCallbackQuery();
+    });
+
+    this.bot.callbackQuery('admin_cancel_booking_creation', async (ctx) => {
+      const tgId = ctx.from?.id.toString();
+      if (tgId && ctx.from) {
+        this.clientMenuHandler.adminBookingStates?.delete(ctx.from.id);
+      }
+      await this.clientMenuHandler.handleAdminCreateClientBooking(ctx);
       await ctx.answerCallbackQuery();
     });
 
@@ -1313,6 +1428,9 @@ export class BotService implements OnModuleInit {
             } else if (cleanText.includes('Bookinglarni boshqarish')) {
               await this.clientMenuHandler.handleManageBookings(ctx);
               return;
+            } else if (cleanText.includes('Mijoz uchun bron yaratish')) {
+              await this.clientMenuHandler.handleAdminCreateClientBooking(ctx);
+              return;
             } else if (cleanText.includes('Barberlar')) {
               await this.clientMenuHandler.handleAdminBarbers(ctx, 1);
               return;
@@ -1369,6 +1487,32 @@ export class BotService implements OnModuleInit {
                 const date = barberState.date;
                 if (date) {
                   await this.barberMenuHandler.handleTimeInput(ctx, date, text);
+                  return;
+                }
+              }
+            }
+          }
+
+          // Admin booking yaratish jarayonida text input'ni qayta ishlash
+          if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+            const adminState = this.clientMenuHandler.adminBookingStates?.get(ctx.from.id);
+            if (adminState) {
+              if (adminState.step === 'client_search_phone' || adminState.step === 'client_search_username') {
+                await this.clientMenuHandler.handleAdminClientSearchInput(ctx, text);
+                return;
+              } else if (
+                adminState.step === 'client_info_name' ||
+                adminState.step === 'client_info_phone' ||
+                adminState.step === 'client_info_username' ||
+                (adminState.step === 'client_info' && !adminState.clientId)
+              ) {
+                await this.clientMenuHandler.handleAdminClientInfoInput(ctx, text);
+                return;
+              } else if (adminState.step === 'time') {
+                // Vaqt input
+                const date = adminState.date;
+                if (date) {
+                  await this.clientMenuHandler.handleAdminTimeInput(ctx, date, text);
                   return;
                 }
               }
